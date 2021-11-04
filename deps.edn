@@ -1,0 +1,4 @@
+{:deps
+ {funcool/promesa {:mvn/version "6.0.2"}
+  juxt/clip {:git/url "https://github.com/juxt/clip"
+             :sha "81d02d881c2b327f29073def9fc7fb93417fa1fd"}}}
