@@ -75,34 +75,74 @@
       (catch #?(:clj Exception :cljs js/Error) e
         (p/resolved {})))))
 
-(defn exec [[to-execute & rest] {:keys [system]}]
+(defn exec [[to-execute & rest] {:keys [system system-config]}]
   (let [to-execute (compile to-execute)
         static (some-> system executed->clip)
         dynamic (some-> to-execute to-execute->clip)
-        system-map (merge static dynamic)]
-    (-> (clip/start
-         {:executor juxt.clip.promesa/exec
-          :components system-map})
+        system-map (merge static dynamic)
+        system-config {:executor juxt.clip.promesa/exec
+                       :components (merge (:components system-config) system-map)}]
+    (-> (clip/start system-config)
         (p/then #(if rest
-                   (exec rest {:system %})
-                   %))
-        (p/then #(with-meta % {:definition {:components system-map}})))))
+                   (exec rest {:system % :system-config system-config})
+                   {:system %
+                    :system-config system-config
+                    :active? true}))
+        (p/catch (fn [err]
+                   (println err)
+                   {:error err
+                    :system-config system-config})))))
 
-(defn stop [system]
-  (clip/stop (-> system meta :definition) system))
+(defn stop [g]
+  (if (:active? g)
+    (-> (clip/stop (:system-config g) (:system g))
+        (p/then (fn [stopped-system]
+                  (merge g {:system stopped-system
+                            :active? false})))
+        (p/catch (fn [err]
+                   (merge g {:error err}))))
+    (do
+      (println "No active system")
+      (p/resolved g))))
+
+(def system* (atom nil))
+(def system-config-fn* (atom nil))
+
+(defn set-config-fn! [f]
+  (reset! system-config-fn* f))
+
+(defn start! []
+  (cond
+    (not @system-config-fn*) (println "NO system-config-fn set!!!")
+    (some-> @system* :active?) (println "System already started")
+    :else (reset! system* @(exec [(@system-config-fn*)] {}))))
+    
+
+(defn stop! []
+  (when @system*
+    (reset! system* @(stop @system*))))
+
+(defn reboot! []
+  (stop!)
+  (start!))
 
 (comment
   (def graph-1
     (compile
      {:a {:a 1}
       :z '(get (gx/ref :a) :a)
-      :b {:start '(+ (gx/ref :z) 2)}}))
+      :y '(println "starting")
+      :b {:start '(+ (gx/ref :z) 2)
+          :stop '(println "stopping")}}))
 
   (def graph-2
     {:c {:start '(gx/ref :b)}
      :d {:w 3}})
 
   (def exec-1 @(exec [graph-1] {}))
+
+  (meta exec-1)
+  (def stopped @(stop exec-1))
 
   (def exec-2 @(exec [graph-1 graph-2] {:system {:yyyyy 3}}))
 
@@ -116,5 +156,11 @@
        (-> (p/delay 300)
            (p/then (fn [_] {}))))]
     {})
+
+  (set-config-fn!
+   (fn []
+     graph-1))
+
+  (reboot!)
 
   nil)
