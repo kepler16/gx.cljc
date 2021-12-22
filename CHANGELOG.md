@@ -1,3 +1,15 @@
+# [1.1.0](https://github.com/kepler16/gx.cljc/compare/v1.0.1...v1.1.0) (2021-12-22)
+
+
+### Bug Fixes
+
+* Add back GITHUB_TOKEN env var ([697ae19](https://github.com/kepler16/gx.cljc/commit/697ae198d3f42bcea52bcb6826a63ae97387745d))
+
+
+### Features
+
+* switch token ([9515142](https://github.com/kepler16/gx.cljc/commit/9515142f11567d39895563987190d98975a2b85c))
+
 ## [1.0.1](https://github.com/kepler16/gx.cljc/compare/v1.0.0...v1.0.1) (2021-12-22)
 
 
