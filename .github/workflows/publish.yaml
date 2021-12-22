@@ -8,9 +8,9 @@ jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
 
-    # env:
+    env:
     #   GITHUB_ACTOR: ${{secrets.ORG_GITHUB_ACTOR}}
-    #   GITHUB_TOKEN: ${{secrets.ORG_GITHUB_TOKEN}}
+      GITHUB_TOKEN: ${{secrets.GITHUB_TOKEN}}
 
     steps:
       - name: Checkout git repo
