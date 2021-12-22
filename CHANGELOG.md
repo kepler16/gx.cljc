@@ -1,3 +1,10 @@
+# [1.2.0](https://github.com/kepler16/gx.cljc/compare/v1.1.0...v1.2.0) (2021-12-22)
+
+
+### Features
+
+* force build ([711cf87](https://github.com/kepler16/gx.cljc/commit/711cf872d5ae95c65c3760a8b83da210bf28240d))
+
 # [1.1.0](https://github.com/kepler16/gx.cljc/compare/v1.0.1...v1.1.0) (2021-12-22)
 
 
