@@ -8,9 +8,9 @@ jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
 
-    env:
-      GITHUB_ACTOR: ${{secrets.ORG_GITHUB_ACTOR}}
-      GITHUB_TOKEN: ${{secrets.ORG_GITHUB_TOKEN}}
+    # env:
+    #   GITHUB_ACTOR: ${{secrets.ORG_GITHUB_ACTOR}}
+    #   GITHUB_TOKEN: ${{secrets.ORG_GITHUB_TOKEN}}
 
     steps:
       - name: Checkout git repo
@@ -37,8 +37,8 @@ jobs:
         with:
           servers: |
             [{"id": "github-kepler",
-              "username": "${{secrets.ORG_GITHUB_ACTOR}}",
-              "password": "${{secrets.ORG_GITHUB_TOKEN}}"}]
+              "username": "GITHUB",
+              "password": "${{secrets.GITHUB_TOKEN}}"}]
 
       - uses: DeLaGuardo/setup-clojure@3.4
         with:
