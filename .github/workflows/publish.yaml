@@ -9,7 +9,6 @@ jobs:
     runs-on: ubuntu-latest
 
     env:
-    #   GITHUB_ACTOR: ${{secrets.ORG_GITHUB_ACTOR}}
       GITHUB_TOKEN: ${{secrets.GITHUB_TOKEN}}
 
     steps:
@@ -30,8 +29,8 @@ jobs:
 
       - uses: actions/setup-java@v2
         with:
-          distribution: adopt-openj9
-          java-version: '16'
+          distribution: 'temurin'
+          java-version: '17'
 
       - uses: s4u/maven-settings-action@v2.4.1
         with:
@@ -40,9 +39,9 @@ jobs:
               "username": "GITHUB",
               "password": "${{secrets.GITHUB_TOKEN}}"}]
 
-      - uses: DeLaGuardo/setup-clojure@3.4
+      - uses: DeLaGuardo/setup-clojure@3.7
         with:
-          cli: 1.10.3.967
+          cli: latest
 
       - name: Install dependencies
         run: npm ci --ignore-scripts
