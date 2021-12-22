@@ -4,7 +4,7 @@
 
 (def global-opts
   {:repository "github-kepler"
-   :lib 'kepler16/authzed.clj})
+   :lib 'kepler16/gx.clj})
 
 (defn release-prepare [opts]
   (->> opts
