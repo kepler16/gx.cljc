@@ -1,26 +1,27 @@
 {
-  "branches": ["master"],
-  "plugins": [
+  "branches" : [
+    "master"
+  ],
+  "plugins" : [
     "@semantic-release/commit-analyzer",
     "@semantic-release/release-notes-generator",
     [
-      "@semantic-release/changelog",
+      "@semantic-release/exec",
       {
-        "changelogFile": "CHANGELOG.md"
+        "prepareCmd" : "clojure -T:build release-prepare :version '\"${nextRelease.version}\"'",
+        "publishCmd" : "clojure -T:build release-publish :version '\"${nextRelease.version}\"'"
       }
     ],
-    ["@semantic-release/exec", {
-      "prepareCmd": "clojure -T:build release-prepare :version '\"${nextRelease.version}\"'",
-      "publishCmd": "clojure -T:build release-publish :version '\"${nextRelease.version}\"'"
-    }],
     [
-      "@semantic-release/git",
+      "@semantic-release/github",
       {
-        "assets": ["CHANGELOG.md"],
-        "message": "chore(release): ${nextRelease.version} [skip ci]\n\n${nextRelease.notes}"
+        "assets" : [
+          {
+            "path" : "target/**/*.jar",
+            "label" : "JAR"
+          }
+        ]
       }
-    ],
-    ["@semantic-release/github", {
-    }]
+    ]
   ]
 }
