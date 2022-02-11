@@ -32,12 +32,23 @@
        (map (fn [[k v]] [k {:start `(identity ~v)}]))
        (into {})))
 
+(defn nref [ref-to]
+  `{~ref-to (~'clip/ref ~ref-to)})
+
+(defn collect-nrefs [refs-to]
+  `(~'merge ~@(map nref refs-to)))
+
 (defn- to-execute->clip [to-execute]
   (walk/postwalk
    (fn [n]
-     (if (= n 'gx/ref)
-       'clip/ref
-       n))
+     (cond
+       (= 'gx/ref n)                         'clip/ref
+       (= 'gx/merge n)                       'merge
+       (and (seq? n)
+            (= (first n) 'gx/nref))          (nref (last n))
+       (and (seq? n)
+            (= (first n) 'gx/collect-nrefs)) (collect-nrefs (rest n))
+       :else                                 n))
    (:gx/compiled to-execute)))
 
 (defn- normalise-resolver [resolver]
@@ -162,5 +173,28 @@
      graph-1))
 
   (reboot!)
+
+  nil)
+
+(comment
+  (def graph-1
+    (compile
+     {:config/a {:a 1}
+      :config/b {:b 2}
+      :old-ref {:config/a '(gx/ref :config/a)
+                :config/b '(gx/ref :config/b)}
+      :named-ref '(gx/merge
+                   (gx/nref :config/a)
+                   (gx/nref :config/b))
+      :named-coll '(gx/collect-nrefs
+                    :config/a
+                    :config/b)}))
+
+  (def exec-1 @(exec [@(resolve-gx-definition [graph-1] {})] {}))
+
+  (assert (= (-> exec-1 :system :old-ref)
+             (-> exec-1 :system :named-ref)
+             (-> exec-1 :system :named-coll)))
+
 
   nil)
