@@ -11,7 +11,11 @@
      (and (map? v) (:start v))
      v
 
-     :else {:start v})])
+     (keyword? v)
+     {:start `(keyword ~v)}
+
+     :else
+     {:start v})])
      ;; (map? v)
      ;; {:start v})])
 
