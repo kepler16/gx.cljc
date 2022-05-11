@@ -4,3 +4,4 @@
 /.lsp/
 /target/
 /node_modules/
+/.calva/
