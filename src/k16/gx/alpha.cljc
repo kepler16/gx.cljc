@@ -119,8 +119,14 @@
   (cond
     (not @system-config-fn*) (println "NO system-config-fn set!!!")
     (some-> @system* :active?) (println "System already started")
-    :else (reset! system* @(exec [(@system-config-fn*)] {}))))
-    
+    :else (let [config (@system-config-fn*)
+                resolved-system @(exec [config] {})]
+            (when (and (:error resolved-system)
+                       (not (:development? config)))
+              #?(:clj (System/exit 1)
+                 :cljs nil ;; TODO: here should be some error message in CLJS UI
+                 ))
+            (reset! system* resolved-system))))
 
 (defn stop! []
   (when @system*
