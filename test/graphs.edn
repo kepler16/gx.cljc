@@ -1,0 +1,9 @@
+{
+ :g1 {:a {:a 1}
+
+      :z (get (gx/ref :a) :a)
+
+      :y (println "starting")
+
+      :b {:gx/start (+ (gx/ref :z) 2)
+          :gx/stop (println "stopping")}}}
