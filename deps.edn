@@ -2,8 +2,12 @@
 
  :deps
  {funcool/promesa {:mvn/version "6.0.2"}
+  metosin/malli {:mvn/version "0.8.4"}
   juxt/clip {:mvn/version "0.27.0"}}
 
  :aliases
- {:build {:deps {io.github.seancorfield/build-clj {:git/tag "v0.6.3" :git/sha "9b8e09b"}}
+ {:test {:extra-paths ["test"]}
+  :dev {:extra-paths ["test"]}
+
+  :build {:deps {io.github.seancorfield/build-clj {:git/tag "v0.6.3" :git/sha "9b8e09b"}}
           :ns-default build}}}
