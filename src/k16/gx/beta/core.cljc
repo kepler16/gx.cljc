@@ -25,6 +25,8 @@
                   (cond
                     (= 'gx/ref x) x
 
+                    (special-symbol? x) x
+
                     #?@(:cljs []
                         :default [(and (symbol? x)
                                        (requiring-resolve
@@ -40,11 +42,13 @@
                         :default [])
 
                     (symbol? x)
-                    (throw (ex-info (str "Unable to resolve symbol " x)
+                    (throw (ex-info (str "Unable to resolve symbol '"
+                                         (pr-str x) "'")
                                     {:form node-definition
                                      :expr x}))
 
-
+                    (and (seq? x) (special-symbol? (first x)))
+                    (list #'eval x)
 
                     (and (seq? x) (= 'gx/ref (first x)))
                     (do (swap! env assoc (second x) any?)
@@ -52,7 +56,8 @@
 
                     :else x)
                   (catch #?(:clj Exception :cljs js/Error) e
-                    (throw (ex-info (str "Unable to evaluate form " (pr-str x))
+                    (throw (ex-info (str "Unable to evaluate form '"
+                                         (pr-str x) "'")
                                     {:form x} e)))))))]
     (gx-signal-wrapper @env node)))
 ;; TODO Update to work with new structure
