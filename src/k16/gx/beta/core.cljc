@@ -60,6 +60,7 @@
                                          (pr-str x) "'")
                                     {:form x} e)))))))]
     (gx-signal-wrapper @env node)))
+
 ;; TODO Update to work with new structure
 (defn signal-processor-definition->signal-processor
   [node-definition]
@@ -76,7 +77,8 @@
     (signal-processor-form->fn node-definition)
 
     :else (throw (ex-info
-                  (str "Unsupported signal processor:\n" node-definition)
+                  (str "Unsupported signal processor: "
+                       (pr-str node-definition))
                   {:body node-definition}))))
 
 ;; TODO Update to work with new structure
