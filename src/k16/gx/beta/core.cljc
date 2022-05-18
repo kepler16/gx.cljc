@@ -3,7 +3,7 @@
             [clojure.walk :as walk]
             [hyperfiddle.rcf :refer [tests]]))
 
-(defn- ^:dynamic get-env [_])
+(defn ^:dynamic get-env [_])
 
 (defn gx-signal-wrapper
   [env w]
@@ -52,7 +52,7 @@
 
                     (and (seq? x) (= 'gx/ref (first x)))
                     (do (swap! env assoc (second x) any?)
-                        (conj (rest x) 'get-env))
+                        (conj (rest x) #'get-env))
 
                     :else x)
                   (catch #?(:clj Exception :cljs js/Error) e
@@ -218,83 +218,82 @@
 ;; Inline RCF tests, runs on evely ns eval.
 ;; Evaluates to nil if not enabled (see dev/user.clj)
 (tests
- (def graph-config {:signals {:gx/start {:order :topological
-                                         :success-status :started
-                                         :failure-status :error}
-                              :gx/stop {:order :reverse-topological
-                                        :success-status :stopped
-                                        :failure-status :error
-                                        :env-from :gx/start}}})
- (def graph {:a {:nested-a 1}
-             :z '(get (gx/ref :a) :nested-a)
-             :y '(println "starting")
-             :b {:gx/start '(+ (gx/ref :z) 2)
-                 :gx/stop '(println "stopping")}})
- (def normalized (normalize-graph graph graph-config))
+ (let [graph-config {:signals {:gx/start {:order :topological
+                                          :success-status :started
+                                          :failure-status :error}
+                               :gx/stop {:order :reverse-topological
+                                         :success-status :stopped
+                                         :failure-status :error
+                                         :env-from :gx/start}}}
+       config {:a {:nested-a 1}
+               :z '(get (gx/ref :a) :nested-a)
+               :y '(println "starting")
+               :b {:gx/start '(+ (gx/ref :z) 2)
+                   :gx/stop '(println "stopping")}}
+       norm-graph (normalize-graph config graph-config)
+       started (signal norm-graph :gx/start graph-config)
+       stopped (signal started :gx/stop graph-config)]
+   (tests
+    "should normalize graph"
+    (set (keys norm-graph)) := #{:a :z :y :b}
 
- "should normalize graph"
- (set (keys normalized)) := #{:a :z :y :b}
+    "check graph deps for gx/start"
+    (graph-dependencies norm-graph :gx/start)
+    := {:a #{}, :z #{:a}, :y #{}, :b #{:z}}
 
- "check graph deps for gx/start"
- (graph-dependencies normalized :gx/start)
- := {:a #{}, :z #{:a}, :y #{}, :b #{:z}}
+    "check graph deps for gx/stop"
+    (graph-dependencies norm-graph :gx/stop)
+    := {:a #{}, :z #{}, :y #{}, :b #{}}
 
- "check graph deps for gx/stop"
- (graph-dependencies normalized :gx/stop)
- := {:a #{}, :z #{}, :y #{}, :b #{}}
+    "check topo sort for gx/start"
+    (topo-sort norm-graph :gx/start graph-config)
+    := '(:a :z :y :b)
 
- "check topo sort for gx/start"
- (topo-sort normalized :gx/start graph-config)
- := '(:a :z :y :b)
+    "check topo sort for gx/stop"
+    (topo-sort norm-graph :gx/stop graph-config)
+    := '(:b :y :z :a)
 
- "check topo sort for gx/stop"
- (topo-sort normalized :gx/stop graph-config)
- := '(:b :y :z :a)
+    "all components should be 'uninitialized'"
+    (->> norm-graph
+         (vals)
+         (map :gx/status)
+         (every? #(= :uninitialized %))) := true
 
- "all components should be 'uninitialized'"
- (->> normalized
-      (vals)
-      (map :gx/status)
-      (every? #(= :uninitialized %))) := true
+    "check data correctness of started nodes"
+    (-> started :a :gx/status) := :started
+    (-> started :a :gx/state) := {:nested-a 1}
+    (-> started :b :gx/status) := :started
+    (-> started :b :gx/state) := 3
+    (-> started :b :gx/start :env) := {:z any?}
+    (-> started :z :gx/status) := :started
+    (-> started :z :gx/state) := 1
+    (-> started :z :gx/start :env) := {:a any?}
+    (-> started :y :gx/status) := :started
+    (-> started :y :gx/state) := nil
 
- (def started (signal normalized :gx/start graph-config))
+    "check data correctness of stopped nodes"
+    (-> stopped :b :gx/status) := :stopped
+    (-> stopped :b :gx/state) := nil
 
- "check data correctness of started nodes"
- (-> started :a :gx/status) := :started
- (-> started :a :gx/state) := {:nested-a 1}
- (-> started :b :gx/status) := :started
- (-> started :b :gx/state) := 3
- (-> started :b :gx/start :env) := {:z any?}
- (-> started :z :gx/status) := :started
- (-> started :z :gx/state) := 1
- (-> started :z :gx/start :env) := {:a any?}
- (-> started :y :gx/status) := :started
- (-> started :y :gx/state) := nil
-
- (def stopped (signal started :gx/stop graph-config))
- "check data correctness of stopped nodes"
- (-> stopped :b :gx/status) := :stopped
- (-> stopped :b :gx/state) := nil
-
- "nodes without gx/stop should be unchanged"
+    "nodes without gx/stop should be unchanged"
  ;; TODO: find out whether nodes should have default stop routine
- (-> stopped :a :gx/status) := :started
- (-> stopped :a :gx/state) := {:nested-a 1}
- (-> stopped :b :gx/start :env) := {:z any?}
- (-> stopped :z :gx/status) := :started
- (-> stopped :z :gx/state) := 1
- (-> stopped :z :gx/start :env) := {:a any?}
- (-> stopped :y :gx/status) := :started
- (-> stopped :y :gx/state) := nil
+    (-> stopped :a :gx/status) := :started
+    (-> stopped :a :gx/state) := {:nested-a 1}
+    (-> stopped :b :gx/start :env) := {:z any?}
+    (-> stopped :z :gx/status) := :started
+    (-> stopped :z :gx/state) := 1
+    (-> stopped :z :gx/start :env) := {:a any?}
+    (-> stopped :y :gx/status) := :started
+    (-> stopped :y :gx/state) := nil
+    nil)
 
- "signal error should set it's status to :error and place ex-info into :state"
- (def err-config {:a {:foo 1}
-                  :g '(throw (ex-info "panic!!!" {:data :foo}))})
- (def err-graph (normalize-graph err-config graph-config))
- (def err-started (signal err-graph :gx/start graph-config))
- (system-status err-started) := {:a :started :g :error}
- (-> err-started :g :gx/status) := :error
- (-> err-started :g :gx/state ex-message) := "panic!!!"
- (-> err-started :g :gx/state ex-data) := {:data :foo}
-
- nil)
+   (let [err-config {:a {:foo 1}
+                     :g '(throw (ex-info "panic!!!" {:data :foo}))}
+         err-graph (normalize-graph err-config graph-config)
+         err-started (signal err-graph :gx/start graph-config)]
+     (tests
+      "signal error should set it's status to :error and place ex-info into :state"
+      (system-status err-started) := {:a :started :g :error}
+      (-> err-started :g :gx/status) := :error
+      (-> err-started :g :gx/state ex-message) := "panic!!!"
+      (-> err-started :g :gx/state ex-data) := {:data :foo}))))

@@ -8,8 +8,11 @@
   com.hyperfiddle/rcf {:mvn/version "20220405"}}
 
  :aliases
- {:test {:extra-paths ["test"]}
-  :dev {:extra-paths ["dev" "test"]}
+ {:test {:jvm-opts    ["-XX:-OmitStackTraceInFastThrow"
+                       "-Dhyperfiddle.rcf.generate-tests=true"]
+         :extra-paths ["dev"]
+         :exec-fn     user/run-k16-tests}
+  :dev {:extra-paths ["dev"]}
 
   :build {:deps {io.github.seancorfield/build-clj
                  {:git/tag "v0.6.3" :git/sha "9b8e09b"}}
