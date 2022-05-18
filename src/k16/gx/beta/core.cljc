@@ -156,11 +156,18 @@
         topo-sorted
         (reverse topo-sorted)))))
 
-(defn system-state [graph]
+(defn system-property
+  [graph property-key]
   (->> graph
-       (map (fn [[k {:gx/keys [state]}]]
-              [k state]))
+       (map (fn [[k node]]
+              [k (get node property-key)]))
        (into {})))
+
+(defn system-state [graph]
+  (system-property graph :gx/state))
+
+(defn system-status [graph]
+  (system-property graph :gx/status))
 
 (defn- run-processor
   [processor argmap]
