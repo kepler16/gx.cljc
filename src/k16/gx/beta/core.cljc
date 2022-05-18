@@ -218,9 +218,12 @@
 ;; Inline RCF tests, runs on evely ns eval.
 ;; Evaluates to nil if not enabled (see dev/user.clj)
 (tests
- (def graph-config {:signals {:gx/start {:order :topological}
+ (def graph-config {:signals {:gx/start {:order :topological
+                                         :success-status :started
+                                         :failure-status :error}
                               :gx/stop {:order :reverse-topological
                                         :success-status :stopped
+                                        :failure-status :error
                                         :env-from :gx/start}}})
  (def graph {:a {:nested-a 1}
              :z '(get (gx/ref :a) :nested-a)
@@ -283,5 +286,15 @@
  (-> stopped :z :gx/start :env) := {:a any?}
  (-> stopped :y :gx/status) := :started
  (-> stopped :y :gx/state) := nil
+
+ "signal error should set it's status to :error and place ex-info into :state"
+ (def err-config {:a {:foo 1}
+                  :g '(throw (ex-info "panic!!!" {:data :foo}))})
+ (def err-graph (normalize-graph err-config graph-config))
+ (def err-started (signal err-graph :gx/start graph-config))
+ (system-status err-started) := {:a :started :g :error}
+ (-> err-started :g :gx/status) := :error
+ (-> err-started :g :gx/state ex-message) := "panic!!!"
+ (-> err-started :g :gx/state ex-data) := {:data :foo}
 
  nil)
