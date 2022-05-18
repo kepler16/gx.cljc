@@ -231,11 +231,13 @@
                :b {:gx/start '(+ (gx/ref :z) 2)
                    :gx/stop '(println "stopping")}}
        norm-graph (normalize-graph config graph-config)
-       started (signal norm-graph :gx/start graph-config)
-       stopped (signal started :gx/stop graph-config)]
+       started-graph (signal norm-graph :gx/start graph-config)
+       stopped-graph (signal started-graph :gx/stop graph-config)]
    (tests
     "should normalize graph"
     (set (keys norm-graph)) := #{:a :z :y :b}
+    (-> norm-graph :b :gx/start :env) := {:z any?}
+    (-> norm-graph :z :gx/start :env) := {:a any?}
 
     "check graph deps for gx/start"
     (graph-dependencies norm-graph :gx/start)
@@ -260,34 +262,29 @@
          (every? #(= :uninitialized %))) := true
 
     "check data correctness of started nodes"
-    (-> started :a :gx/status) := :started
-    (-> started :a :gx/state) := {:nested-a 1}
-    (-> started :b :gx/status) := :started
-    (-> started :b :gx/state) := 3
-    (-> started :b :gx/start :env) := {:z any?}
-    (-> started :z :gx/status) := :started
-    (-> started :z :gx/state) := 1
-    (-> started :z :gx/start :env) := {:a any?}
-    (-> started :y :gx/status) := :started
-    (-> started :y :gx/state) := nil
+    (system-status started-graph)
+    := {:a :started, :z :started, :y :started, :b :started}
+    (system-state started-graph)
+    := {:a {:nested-a 1}, :z 1, :y nil, :b 3}
 
     "check data correctness of stopped nodes"
-    (-> stopped :b :gx/status) := :stopped
-    (-> stopped :b :gx/state) := nil
+    (-> stopped-graph :b :gx/status) := :stopped
+    (-> stopped-graph :b :gx/state) := nil
 
     "nodes without gx/stop should be unchanged"
- ;; TODO: find out whether nodes should have default stop routine
-    (-> stopped :a :gx/status) := :started
-    (-> stopped :a :gx/state) := {:nested-a 1}
-    (-> stopped :b :gx/start :env) := {:z any?}
-    (-> stopped :z :gx/status) := :started
-    (-> stopped :z :gx/state) := 1
-    (-> stopped :z :gx/start :env) := {:a any?}
-    (-> stopped :y :gx/status) := :started
-    (-> stopped :y :gx/state) := nil
+    ;; TODO: find out whether nodes should have default stop routine
+    (-> stopped-graph :a :gx/status) := :started
+    (-> stopped-graph :a :gx/state) := {:nested-a 1}
+    (-> stopped-graph :b :gx/start :env) := {:z any?}
+    (-> stopped-graph :z :gx/status) := :started
+    (-> stopped-graph :z :gx/state) := 1
+    (-> stopped-graph :z :gx/start :env) := {:a any?}
+    (-> stopped-graph :y :gx/status) := :started
+    (-> stopped-graph :y :gx/state) := nil
     nil)
 
    (let [err-config {:a {:foo 1}
+                     ;; clj/cljs special symbol support
                      :g '(throw (ex-info "panic!!!" {:data :foo}))}
          err-graph (normalize-graph err-config graph-config)
          err-started (signal err-graph :gx/start graph-config)]
