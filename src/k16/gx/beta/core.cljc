@@ -180,7 +180,7 @@
         signal-impl (get node signal-key)
         {:keys [env processor]} signal-impl
         {:keys [_order env-from success-status failure-status]
-         :or {success-status :started
+         :or {success-status signal-key
               failure-status :error}} signal-config
         env' (if (and (not env) env-from)
                (-> node-key :env-from :env)
