@@ -1,0 +1,11 @@
+{:deps {:aliases [:dev :test]}
+ :builds
+ {:gx
+  {:target    :node-library
+   :output-dir "out"
+   :exports {}}}
+  :test
+  {:target    :node-test
+   :output-to "out/gx-test.js"
+   :ns-regexp "-test$"
+   :autorun   true}}
