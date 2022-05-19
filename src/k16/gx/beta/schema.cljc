@@ -2,7 +2,8 @@
   (:require
    [malli.core :as m]
    [malli.generator :as mg]
-   [malli.error :as me]))
+   [malli.error :as me]
+   [malli.util :as mu]))
 
 (def ?SignalConfig
   [:map
@@ -18,19 +19,47 @@
 
 (def ?SignalDefinition
   [:map
-   [:processor fn?]
-   [:props-schema {:optional? true} m/schema?]
-   [:props [:map any?]]])
+   [:processor ifn?]
+   [:props-schema {:optional true} vector?]
+   [:props [:map-of keyword? any?]]])
+
+(m/validate
+ [:map
+  [:x string?]
+  [[:opt :y] int?]
+  [keyword? [:vector int?]]]
+ {:x "x"
+  :z [1 2 3]})
 
 (def ?NodeDefinition
-  [:merge
-   [:map-of :keyword ?SignalDefinition]
+  [:map
+    ;; TODO interesting idea (c) Alexis
+    ;; [:gx/vars [:map-of keyword? any?]]
+   [:gx/state keyword?]
+   [:gx/failure {:optional true} any?]
+   [:gx/value any?]
+   [:gx/start ?SignalDefinition]]
+  #_[:and
    [:map
     ;; TODO interesting idea (c) Alexis
-    ;; [:gx/vars [:map any?]]
-    [:gx/state :keyword]
+    ;; [:gx/vars [:map-of keyword? any?]]
+    [:gx/state keyword?]
     [:gx/failure {:optional true} any?]
-    [:gx/value any?]]])
+    [:gx/value any?]
+    [:gx/start ?SignalDefinition]]
+   [:map-of keyword? ?SignalDefinition]])
+
+(def ?NormalizedGraphDefinition
+  [:map-of keyword? ?NodeDefinition])
+
+(m/explain
+ ?NormalizedGraphDefinition
+ {:g1
+  #:gx{:state :uninitialized,
+       :value nil,
+       :start
+       {:props {},
+        :processor identity}}})
 
 ;; (def ?SimpleComponentDefinition
 ;;   [:map

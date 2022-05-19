@@ -1,25 +1,21 @@
 (ns k16.gx.beta.core
   (:require [k16.gx.beta.impl :as impl]
-            [clojure.walk :as walk]
-            [malli.core :as m]
-            [malli.error :as me]
-            [k16.gx.beta.schema :as schema]
-            [hyperfiddle.rcf :refer [tests]]))
+            [clojure.walk :as walk]))
 
-(defn ^:dynamic get-env [_])
+(defn ^:dynamic get-prop [_])
 
 (defn gx-signal-wrapper
-  [env w]
-  {:env env
-   :processor (fn signal-wrapper [{:keys [env _value]}]
+  [props w]
+  {:props props
+   :processor (fn signal-wrapper [{:keys [props _value]}]
                 (if (and (seq? w) (var? (first w)))
-                  (binding [get-env #(get env %)]
+                  (binding [get-prop #(get props %)]
                     (eval w))
                   w))})
 
 (defn signal-processor-form->fn
   [node-definition]
-  (let [env (atom {})
+  (let [props* (atom {})
         node
         (->> node-definition
              (walk/postwalk
@@ -54,15 +50,15 @@
                     (list #'eval x)
 
                     (and (seq? x) (= 'gx/ref (first x)))
-                    (do (swap! env assoc (second x) any?)
-                        (conj (rest x) #'get-env))
+                    (do (swap! props* assoc (second x) any?)
+                        (conj (rest x) #'get-prop))
 
                     :else x)
                   (catch #?(:clj Exception :cljs js/Error) e
                     (throw (ex-info (str "Unable to evaluate form '"
                                          (pr-str x) "'")
                                     {:form x} e)))))))]
-    (gx-signal-wrapper @env node)))
+    (gx-signal-wrapper @props* node)))
 
 ;; TODO Update to work with new structure
 (defn signal-processor-definition->signal-processor
@@ -97,7 +93,7 @@
   (let [component (when (map? node-definition)
                     (some-> node-definition :gx/component))
         new-def {:gx/vars {:normalised true}
-                 :gx/status :uninitialized
+                 :gx/state :uninitialized
                  :gx/value nil}]
     ;; (if component)
     ;; (or component)
@@ -121,7 +117,7 @@
 (defn normalize-graph
   "Given a graph definition, return a normalised form. idempotent.
   This acts as the static analysis step of the graph"
-  [graph-definition graph-config]
+  [graph-definition]
   (->> graph-definition
        (map (fn [[k v]]
               [k (normalize-graph-def v)]))
@@ -130,15 +126,15 @@
 (defn graph-dependencies [graph signal-key]
   (->> graph
        (map (fn [[k node]]
-              (let [deps (-> node signal-key :env keys)]
+              (let [deps (-> node signal-key :props keys)]
                 [k (into #{} deps)])))
        (into {})))
 
 (defn topo-sort [graph signal-key graph-config]
   (let [signal-config (get-in graph-config [:signals signal-key])
-        env-from (or (:env-from signal-config)
+        deps-from (or (:deps-from signal-config)
                      signal-key)
-        graph-deps (graph-dependencies graph env-from)
+        graph-deps (graph-dependencies graph deps-from)
         sorted-raw (impl/sccs graph-deps)]
 
     ;; handle dependency errors
@@ -161,11 +157,11 @@
               [k (get node property-key)]))
        (into {})))
 
-(defn system-state [graph]
+(defn system-value [graph]
   (system-property graph :gx/value))
 
-(defn system-status [graph]
-  (system-property graph :gx/status))
+(defn system-state [graph]
+  (system-property graph :gx/state))
 
 (defn- run-processor
   [processor arg-map]
@@ -176,29 +172,43 @@
       {:success? false
        :data e})))
 
+(defn validate-signal!
+  [graph node-key signal-key graph-config]
+  (let [signal-config (-> graph-config :signals signal-key)
+        from-state (:from-state signal-config)
+        node (get graph node-key)
+        node-state (:gx/state node)]
+    (assert (get from-state node-state)
+            (str "Incompatible from-state " node-state
+                 ", expecting one of " from-state))
+    {:signal-config signal-config
+     :node node}))
+
 (defn node-signal
   "Trigger a signal through a node, assumes dependencies have been run"
   [graph node-key signal-key graph-config]
-  (let [signal-config (get-in graph-config [:signals signal-key])
-        node (get graph node-key)
-        node-value (get node :gx/value)
-        signal-impl (get node signal-key)
-        {:keys [env processor]} signal-impl
-        {:keys [_order deps-from from-state to-state]} signal-config
-        env' (if (and (not env) deps-from)
-               (-> node-key :env-from :env)
-               env)
-        dep-components (select-keys graph (keys env'))
-        env-map' (system-state dep-components)]
+
+  (let [{:keys [signal-config node]}
+        (validate-signal! graph node-key signal-key graph-config)
+        {:keys [props processor]} (get node signal-key)
+        {:keys [deps-from to-state]} signal-config
+        props (if (and (not props) deps-from)
+               (-> node deps-from :props)
+               props)
+        dep-components (select-keys graph (keys props))
+        props-map (system-value dep-components)]
     (if processor
-      (if-let [{:keys [success? data]}
-               (run-processor
-                processor {:env env-map' :value node-value})]
-        (-> node
-            (assoc (if success? :gx/value :gx/failure-state) data)
-            (assoc :gx/status (if success? to-state failure-status)))
-        node)
-      node)))
+      (let [{:keys [success? data]}
+            (run-processor
+             processor {:props props-map :value (:gx/value node)})]
+        (if success?
+          (-> node
+              (assoc :gx/value data)
+              (assoc :gx/state to-state))
+          (assoc node :gx/failure data)))
+      (-> node
+          (assoc :gx/value nil)
+          (assoc :gx/state to-state)))))
 
 (defn signal [graph signal-key graph-config]
   (let [sorted (topo-sort graph signal-key graph-config)]
@@ -209,6 +219,33 @@
      graph
      sorted)))
 
+(comment
+  (def graph-config
+    {:signals {:gx/start {:order :topological
+                          :from-state #{:stopped :uninitialized}
+                          :to-state :started}
+               :gx/stop {:order :reverse-topological
+                         :from-state #{:started}
+                         :to-state :stopped
+                         :deps-from :gx/start}}})
+
+  (def config {:a {:nested-a 1}
+               :z '(get (gx/ref :a) :nested-a)
+               :y '(println "starting")
+               :b {:gx/start '(+ (gx/ref :z) 2)
+                   :gx/stop '(println "stopping")}})
+
+  (def graph (normalize-graph config))
+  (topo-sort graph :gx/start graph-config)
+  (def started (signal graph :gx/start graph-config))
+  (system-state started)
+  (def stopped (signal started :gx/stop graph-config))
+  (system-state stopped)
+  (def started' (signal stopped :gx/start graph-config))
+  (system-state started')
+  nil
+  )
+
 
 (def my-component
   {:transit/event-1 {:env {:a map?}
@@ -218,118 +255,3 @@
   {:gx/start {:props-schema [:map [:a int?]]
               :processor (fn [{:gx/keys [props args value state]}])}
    :gx/stop (fn [])})
-;; Inline RCF tests, runs on evely ns eval.
-;; Evaluates to nil if not enabled (see dev/user.clj)
-(tests
- (let [graph-config
-       {:signals {:gx/start {:order :topological
-                             :from-state #{:stopped :uninitialized}
-                             :to-state :started}
-                  :gx/stop {:order :reverse-topological
-                            :from-state #{:started}
-                            :to-state :stopped
-                            :deps-from :gx/start}}}
-       config {:a {:nested-a 1}
-               :my-component {:gx/component my-component
-                              :gx/start {:props {:a '(gx/ref :a)}}}
-               :z '(get (gx/ref :a) :nested-a)
-               :y '(println "starting")
-               :b {:gx/start '(+ (gx/ref :z) 2)
-                   :gx/stop '(println "stopping")}}
-       norm-graph (normalize-graph config graph-config)
-       started-graph (signal norm-graph :gx/start graph-config)
-       stopped-graph (signal started-graph :gx/stop graph-config)]
-   (tests
-    "should normalize graph"
-    (set (keys norm-graph)) := #{:a :z :y :b}
-    (-> norm-graph :b :gx/start :env) := {:z any?}
-    (-> norm-graph :z :gx/start :env) := {:a any?}
-
-    "check graph deps for gx/start"
-    (graph-dependencies norm-graph :gx/start)
-    := {:a #{}, :z #{:a}, :y #{}, :b #{:z}}
-
-    "check graph deps for gx/stop"
-    (graph-dependencies norm-graph :gx/stop)
-    := {:a #{}, :z #{}, :y #{}, :b #{}}
-
-    "check topo sort for gx/start"
-    (topo-sort norm-graph :gx/start graph-config)
-    := '(:a :z :y :b)
-
-    "check topo sort for gx/stop"
-    (topo-sort norm-graph :gx/stop graph-config)
-    := '(:b :y :z :a)
-
-    "all components should be 'uninitialized'"
-    (->> norm-graph
-         (vals)
-         (map :gx/status)
-         (every? #(= :uninitialized %))) := true
-
-    "check data correctness of started nodes"
-    (system-status started-graph)
-    := {:a :started, :z :started, :y :started, :b :started}
-    (system-state started-graph)
-    := {:a {:nested-a 1}, :z 1, :y nil, :b 3}
-
-    "check data correctness of stopped nodes"
-    (-> stopped-graph :b :gx/status) := :stopped
-    (-> stopped-graph :b :gx/value) := nil
-
-    "nodes without gx/stop should be unchanged"
-    ;; TODO: find out whether nodes should have default stop routine
-    (-> stopped-graph :a :gx/status) := :started
-    (-> stopped-graph :a :gx/value) := {:nested-a 1}
-    (-> stopped-graph :b :gx/start :env) := {:z any?}
-    (-> stopped-graph :z :gx/status) := :started
-    (-> stopped-graph :z :gx/value) := 1
-    (-> stopped-graph :z :gx/start :env) := {:a any?}
-    (-> stopped-graph :y :gx/status) := :started
-    (-> stopped-graph :y :gx/value) := nil
-    nil)
-
-   (let [err-config {:a {:foo 1}
-                     ;; clj/cljs special symbol support
-                     :g '(throw (ex-info "panic!!!" {:data :foo}))}
-         err-graph (normalize-graph err-config graph-config)
-         err-started (signal err-graph :gx/start graph-config)]
-     (tests
-      "signal error should set it's status to :error and place ex-info into :state"
-      (system-status err-started) := {:a :started :g :error}
-      (-> err-started :g :gx/status) := :error
-      (-> err-started :g :gx/value ex-message) := "panic!!!"
-      (-> err-started :g :gx/value ex-data) := {:data :foo})))
-
- (tests
-  "component tests"))
-
-(let [graph-config
-      {:signals {:gx/start {:order :topological
-                            :from-states #{:stopped :uninitialized}
-                            :to-states {:success :started
-                                        :falure :error}}
-                 :gx/stop {:order :reverse-topological
-                           :from-states #{:started}
-                           :to-states {:success :stopped
-                                       :falure :error}
-                           :env-from :gx/start}}}
-      comp {:props {:opts map?}
-            :start (fn [{:gx/keys [props status] :keys [env]}]
-                     ;; return some instance state
-                     {:comp-instance props})
-            :stop (fn [{:keys [_env _state status]}]
-                    (when (= :started status)
-                      ;; stop component returning nil state
-                      nil))}
-      config {:component-opts {:option-a 1
-                               :option-b "foo"
-                               :option-c :bar}
-              :component/instance
-              {:gx/component comp
-               :gx/props-map {:opts '(gx/ref :component-opts)}}}
-      norm-graph (normalize-graph config graph-config)
-      #_#_started-graph (signal norm-graph :gx/start graph-config)]
-  #_(system-state started-graph)
-  norm-graph
-  #_started-graph)
