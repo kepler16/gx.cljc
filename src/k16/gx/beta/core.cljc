@@ -168,7 +168,7 @@
   (try
     {:success? true
      :data (processor arg-map)}
-    (catch Exception e
+    (catch #?(:clj Exception :cljs js/Error) e
       {:success? false
        :data e})))
 

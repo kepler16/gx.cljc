@@ -7,3 +7,5 @@
 /.calva/
 /.DS_Store/
 /.portal/
+/out/
+/.shadow-cljs/
