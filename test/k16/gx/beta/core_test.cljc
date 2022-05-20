@@ -57,9 +57,8 @@
                {:a {:nested-a 1}, :z 1, :y nil, :b nil}))))))
 
 ;; TODO: should we support special forms inside config e.g. throw?
-;; currently turned off, not sure how to handle special forms without using
-;; eval
-#_(deftest failed-node-test
+;; currently throws error
+(deftest failed-normalization-test
   (let [custom-config {:signals
                        {:custom/start {:order :topological
                                        :from-state #{:stopped :uninitialized}
@@ -73,15 +72,8 @@
                 :y '(println "starting")
                 :d '(throw (ex-info "foo" (gx/ref :a)))
                 :b {:custom/start '(+ (gx/ref :z) 2)
-                    :custom/stop '(println "stopping")}}
-        normalized (gx/normalize-graph config custom-config)
-        started (gx/signal normalized :custom/start custom-config)]
-    (testing "custom config with failed node"
-      (is (= (gx/system-state started)
-             {:a :started, :z :started,
-              :y :started, :d :uninitialized,
-              :b :started}))
-      (is (= (ex-data (:d (gx/system-property started :gx/failure)))
-             {:nested-a 1}))
-      (is (= (ex-message (:d (gx/system-property started :gx/failure)))
-             "foo")))))
+                    :custom/stop '(println "stopping")}}]
+    (is (thrown-with-msg?
+         #?(:clj Exception :cljs js/Error)
+         #"Unable to evaluate form 'throw'"
+         (gx/normalize-graph config custom-config)))))
