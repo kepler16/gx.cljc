@@ -6,11 +6,11 @@
             [malli.error :as me]
             #?(:clj [clojure.test :refer [deftest testing is]])
             #?(:cljs [cljs.test :refer-macros [deftest is testing]])
-            #?(:cljs [test-utils :refer [node-slurp]])))
+            #?(:cljs [test-utils :refer [slurp]])))
 
 (defn load-config []
   (let [path "test/fixtures/graphs.edn"]
-    (edn/read-string (#?(:clj slurp :cljs node-slurp) path))))
+    (edn/read-string (slurp path))))
 
 (def graph-config
   {:signals {:gx/start {:order :topological
