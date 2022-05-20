@@ -1,5 +1,4 @@
-(ns k16.gx.beta.impl
-  (:require [clojure.walk :as walk]))
+(ns k16.gx.beta.impl)
 
 (defn sccs
   "Returns a topologically sorted list of strongly connected components.
@@ -99,4 +98,5 @@
   [sym]
   (if (namespace sym)
     sym
-    (symbol "clojure.core" (name sym))))
+    #?(:clj (symbol "clojure.core" (name sym))
+       :cljs ((ns-publics 'cljs.core) sym))))

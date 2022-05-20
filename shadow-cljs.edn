@@ -1,11 +1,15 @@
-{:deps {:aliases [:dev :test]}
+{:source-paths ["src" "dev" "test"]
+ :dependencies [[funcool/promesa "6.0.2"]
+                [metosin/malli "0.8.4"]
+                [juxt/clip "0.27.0"]]
  :builds
  {:gx
   {:target    :node-library
-   :output-dir "out"
-   :exports {}}}
+   :output-to "out/gx.js"
+   :output-dir "out"}
+
   :test
   {:target    :node-test
    :output-to "out/gx-test.js"
    :ns-regexp "-test$"
-   :autorun   true}}
+   :autorun   true}}}
