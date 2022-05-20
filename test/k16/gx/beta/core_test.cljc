@@ -21,15 +21,9 @@
                        :to-state :stopped
                        :deps-from :gx/start}}})
 
-(comment
-  (let [config (load-config)
-        normalized (gx/normalize-graph config)]
-    (gx/normalize-graph config))
-  nil)
-
 (deftest graph-tests
   (let [config (load-config)
-        normalized (gx/normalize-graph config)]
+        normalized (gx/normalize-graph config graph-config)]
     (testing "normalization structure should be valid"
       (is
        (m/validate gxs/?NormalizedGraphDefinition normalized)
@@ -60,3 +54,30 @@
             "all nodes should be stopped")
         (is (= (gx/system-value stopped)
                {:a nil, :z nil, :y nil, :b nil}))))))
+
+(deftest failed-node-test
+  (let [custom-config {:signals
+                       {:custom/start {:order :topological
+                                       :from-state #{:stopped :uninitialized}
+                                       :to-state :started}
+                        :custom/stop {:order :reverse-topological
+                                      :from-state #{:started}
+                                      :to-state :stopped
+                                      :deps-from :gx/start}}}
+        config {:a {:nested-a 1}
+                :z '(get (gx/ref :a) :nested-a)
+                :y '(println "starting")
+                :d '(throw (ex-info "foo" (gx/ref :a)))
+                :b {:custom/start '(+ (gx/ref :z) 2)
+                    :custom/stop '(println "stopping")}}
+        normalized (gx/normalize-graph config custom-config)
+        started (gx/signal normalized :custom/start custom-config)]
+    (testing "custom config with failed node"
+      (is (= (gx/system-state started)
+             {:a :started, :z :started,
+              :y :started, :d :uninitialized,
+              :b :started}))
+      (is (= (ex-data (:d (gx/system-property started :gx/failure)))
+             {:nested-a 1}))
+      (is (= (ex-message (:d (gx/system-property started :gx/failure)))
+             "foo")))))
