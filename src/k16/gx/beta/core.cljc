@@ -3,16 +3,55 @@
             [k16.gx.beta.schema :as gxs]
             [clojure.walk :as walk]))
 
-(defn ^:dynamic get-prop [_])
+(defn evaluate
+  [props args]
+  (walk/postwalk
+   (fn [x]
+     (cond
+       (and (seq? x) (= 'gx/ref (first x)))
+       (get props (second x))
+
+       (and (seq? x) (fn? (first x)))
+       (apply (first x) (rest x))
+
+       :else x))
+   args))
+
+(comment
+  (impl/namespace-symbol 'inc)
+
+  (let [graph-config
+        {:signals {:transit/start {:order :topological
+                                   :from-state #{:stopped :uninitialized}
+                                   :to-state :started}
+                   :transit/stop {:order :reverse-topological
+                                  :from-state #{:started}
+                                  :to-state :stopped
+                                  :deps-from :gx/start}}}
+        config {:a {:nested-a 1}
+                :z '(inc (get (gx/ref :a) :nested-a))}
+        norm (normalize-graph config graph-config)
+        started (signal norm :transit/start graph-config)]
+    (system-value started))
+  )
 
 (defn gx-signal-wrapper
   [props w]
   {:props props
    :processor (fn signal-wrapper [{:keys [props _value]}]
-                (if (and (seq? w) (var? (first w)))
-                  (binding [get-prop #(get props %)]
-                    (eval w))
-                  w))})
+                (cond
+                  (fn? w) (w)
+
+                  (and (seq? w) (fn? (first w)))
+                  (evaluate props w)
+
+                  :else w))})
+
+(defn throw-parse-error
+  [msg node-definition token]
+  (throw (ex-info (str msg " '" (pr-str token) "'")
+                  {:form node-definition
+                   :expr token})))
 
 (defn signal-processor-form->fn
   [node-definition]
@@ -20,48 +59,60 @@
         node
         (->> node-definition
              (walk/postwalk
-              (fn [x]
+              (fn [token]
                 (try
                   (cond
-                    (= 'gx/ref x) x
+                    (= 'gx/ref token) token
 
-                    (special-symbol? x) x
+                    (special-symbol? token)
+                    (throw-parse-error "Special forms are not supported"
+                                       node-definition
+                                       token)
 
-                    #?@(:cljs []
-                        :default [(and (symbol? x)
-                                       (requiring-resolve
-                                        (impl/namespace-symbol x)))
-                                  (requiring-resolve
-                                   (impl/namespace-symbol x))])
+                    #?@(:cljs [(and (symbol? token)
+                                    (impl/namespace-symbol token))
+                               (impl/namespace-symbol token)]
+                        :clj [(and (symbol? token)
+                                   (requiring-resolve
+                                    (impl/namespace-symbol token)))
+                              (var-get
+                               (requiring-resolve
+                                (impl/namespace-symbol token)))])
 
-                    #?@(:clj [(and (symbol? x) (= \. (first (str x))))
-                              #(clojure.lang.Reflector/invokeInstanceMethod
-                                %1
-                                (subs (str x) 1)
-                                (into-array Object %&))]
+                    #?@(:clj [(and (symbol? token) (= \. (first (str token))))
+                              (fn [v & args]
+                                (clojure.lang.Reflector/invokeInstanceMethod
+                                 v
+                                 (subs (str token) 1)
+                                 (into-array Object args)))]
                         :default [])
 
-                    (symbol? x)
-                    (throw (ex-info (str "Unable to resolve symbol '"
-                                         (pr-str x) "'")
-                                    {:form node-definition
-                                     :expr x}))
+                    (symbol? token)
+                    (throw-parse-error "Unable to resolve symbol"
+                                       node-definition
+                                       token)
 
-                    (and (seq? x) (special-symbol? (first x)))
-                    (list #'eval x)
+                    (and (seq? token) (special-symbol? (first token)))
+                    (constantly token)
 
-                    (and (seq? x) (= 'gx/ref (first x)))
-                    (do (swap! props* assoc (second x) any?)
-                        (conj (rest x) #'get-prop))
+                    (and (seq? token) (= 'gx/ref (first token)))
+                    (do (swap! props* assoc (second token) any?)
+                        token)
 
-                    :else x)
+                    :else token)
                   (catch #?(:clj Exception :cljs js/Error) e
                     (throw (ex-info (str "Unable to evaluate form '"
-                                         (pr-str x) "'")
-                                    {:form x} e)))))))]
+                                         (pr-str token) "'")
+                                    {:form token} e)))))))]
+    ;; (println node)
     (gx-signal-wrapper @props* node)))
 
-;; TODO Update to work with new structure
+;; (defn normalize-component-def
+;;   [component]
+;;   (let [{:keys [component simple?]} (schema/validate-component! component)]
+;;     (if simple?
+;;       )))
+
 (defn signal-processor-definition->signal-processor
   [node-definition]
   (cond
@@ -81,12 +132,7 @@
                        (pr-str node-definition))
                   {:body node-definition}))))
 
-;; (defn normalize-component-def
-;;   [component]
-;;   (let [{:keys [component simple?]} (schema/validate-component! component)]
-;;     (if simple?
-;;       )))
-
+;; TODO Update to work with new structure
 (defn get-initial-signals
   [graph-config]
   (->> graph-config
@@ -233,46 +279,3 @@
          (assoc graph node-key node)))
      graph
      sorted)))
-
-(comment
-  (def graph-config
-    {:signals {:transit/start {:order :topological
-                               :from-state #{:stopped :uninitialized}
-                               :to-state :started}
-               :transit/stop {:order :reverse-topological
-                              :from-state #{:started}
-                              :to-state :stopped
-                              :deps-from :gx/start}}})
-  (->> graph-config
-       :signals
-       (filter (fn [[name body]]
-                 ((:from-state body) :uninitialized)))
-       (map first))
-
-  (def config {:a {:nested-a 1}
-               :z '(get (gx/ref :a) :nested-a)
-               :y '(println "starting")
-               :d '(throw (ex-info "foo" (gx/ref :a)))
-               :b {:transit/start '(+ (gx/ref :z) 2)
-                   :transit/stop '(println "stopping")}})
-
-  (def graph (normalize-graph config graph-config))
-  (topo-sort graph :transit/start graph-config)
-  (def started (signal graph :transit/start graph-config))
-  (system-state started)
-  (system-value started)
-  (system-property started :gx/failure)
-  (def stopped (signal started :transit/stop graph-config))
-  (system-state stopped)
-  (def started' (signal stopped :transit/start graph-config))
-  (system-state started')
-  nil)
-
-(def my-component
-  {:transit/event-1 {:env {:a map?}
-                     :processor (fn [])}})
-
-(def my-mycomponet
-  {:gx/start {:props-schema [:map [:a int?]]
-              :processor (fn [{:gx/keys [props args value state]}])}
-   :gx/stop (fn [])})
