@@ -87,6 +87,14 @@
 ;;     (if simple?
 ;;       )))
 
+(defn get-initial-signals
+  [graph-config]
+  (->> graph-config
+       :signals
+       (filter (fn [[_ body]]
+                 ((:from-state body) :uninitialized)))
+       (map first)))
+
 ;; TODO Update to work with new structure
 (defn normalize-graph-def
   "Given a component definition, "
@@ -95,24 +103,29 @@
                     (some-> node-definition :gx/component))
         new-def {:gx/vars {:normalised true}
                  :gx/state :uninitialized
-                 :gx/value nil}]
-    ;; (if component)
-    ;; (or component)
+                 :gx/value nil}
+        signals (set (keys (:signals graph-config)))
+        ;; gather initial signals, which handle :uninitialized state
+        initial-signals (get-initial-signals graph-config)]
     (cond
       ;; Already in normalised/semi-normalised form
       (and (map? node-definition)
-           (some #{:gx/start :gx/stop} (keys node-definition)))
-      (-> new-def
-          (merge node-definition)
-          (update :gx/start
-                  signal-processor-definition->signal-processor)
-          (update :gx/stop
-                  signal-processor-definition->signal-processor))
+           (some signals (keys node-definition)))
+      (reduce
+       (fn [nd signal]
+         (if (get nd signal)
+           (update nd signal signal-processor-definition->signal-processor)
+           nd))
+       (merge new-def node-definition)
+       signals)
 
       :else
-      (merge new-def
-             {:gx/start (signal-processor-definition->signal-processor
-                         node-definition)}))))
+      (reduce
+       (fn [nd signal]
+         (assoc nd signal (signal-processor-definition->signal-processor
+                           node-definition)))
+       new-def
+       initial-signals))))
 
 ;; TODO Update to work with new structure
 (defn normalize-graph
@@ -135,7 +148,7 @@
 (defn topo-sort [graph signal-key graph-config]
   (let [signal-config (get-in graph-config [:signals signal-key])
         deps-from (or (:deps-from signal-config)
-                     signal-key)
+                      signal-key)
         graph-deps (graph-dependencies graph deps-from)
         sorted-raw (impl/sccs graph-deps)]
 
@@ -195,8 +208,8 @@
         {:keys [props processor]} (get node signal-key)
         {:keys [deps-from to-state]} signal-config
         props (if (and (not props) deps-from)
-               (-> node deps-from :props)
-               props)
+                (-> node deps-from :props)
+                props)
         dep-components (select-keys graph (keys props))
         props-map (system-value dep-components)]
     (if processor
@@ -223,31 +236,37 @@
 
 (comment
   (def graph-config
-    {:signals {:gx/start {:order :topological
-                          :from-state #{:stopped :uninitialized}
-                          :to-state :started}
-               :gx/stop {:order :reverse-topological
-                         :from-state #{:started}
-                         :to-state :stopped
-                         :deps-from :gx/start}}})
+    {:signals {:transit/start {:order :topological
+                               :from-state #{:stopped :uninitialized}
+                               :to-state :started}
+               :transit/stop {:order :reverse-topological
+                              :from-state #{:started}
+                              :to-state :stopped
+                              :deps-from :gx/start}}})
+  (->> graph-config
+       :signals
+       (filter (fn [[name body]]
+                 ((:from-state body) :uninitialized)))
+       (map first))
 
   (def config {:a {:nested-a 1}
                :z '(get (gx/ref :a) :nested-a)
                :y '(println "starting")
-               :b {:gx/start '(+ (gx/ref :z) 2)
-                   :gx/stop '(println "stopping")}})
+               :d '(throw (ex-info "foo" (gx/ref :a)))
+               :b {:transit/start '(+ (gx/ref :z) 2)
+                   :transit/stop '(println "stopping")}})
 
-  (def graph (normalize-graph config))
-  (topo-sort graph :gx/start graph-config)
-  (def started (signal graph :gx/start graph-config))
+  (def graph (normalize-graph config graph-config))
+  (topo-sort graph :transit/start graph-config)
+  (def started (signal graph :transit/start graph-config))
   (system-state started)
-  (def stopped (signal started :gx/stop graph-config))
+  (system-value started)
+  (system-property started :gx/failure)
+  (def stopped (signal started :transit/stop graph-config))
   (system-state stopped)
-  (def started' (signal stopped :gx/start graph-config))
+  (def started' (signal stopped :transit/start graph-config))
   (system-state started')
-  nil
-  )
-
+  nil)
 
 (def my-component
   {:transit/event-1 {:env {:a map?}
