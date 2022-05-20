@@ -267,9 +267,7 @@
               (assoc :gx/value data)
               (assoc :gx/state to-state))
           (assoc node :gx/failure data)))
-      (-> node
-          (assoc :gx/value nil)
-          (assoc :gx/state to-state)))))
+      node)))
 
 (defn signal [graph signal-key graph-config]
   (let [sorted (topo-sort graph signal-key graph-config)]

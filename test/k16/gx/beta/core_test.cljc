@@ -48,12 +48,13 @@
         (is (= (gx/system-value started)
                {:a {:nested-a 1}, :z 1, :y nil, :b 3})))
 
-      (testing "graph should stop correctly"
+      (testing "graph should stop correctly, nodes without signal handler
+                should not change state and value"
         (is (= (gx/system-state stopped)
-               {:a :stopped, :z :stopped, :y :stopped, :b :stopped})
+               {:a :started, :z :started, :y :started, :b :stopped})
             "all nodes should be stopped")
         (is (= (gx/system-value stopped)
-               {:a nil, :z nil, :y nil, :b nil}))))))
+               {:a {:nested-a 1}, :z 1, :y nil, :b nil}))))))
 
 ;; TODO: should we support special forms inside config e.g. throw?
 ;; currently turned off, not sure how to handle special forms without using
