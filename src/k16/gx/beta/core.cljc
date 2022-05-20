@@ -14,6 +14,10 @@
        (and (seq? x) (fn? (first x)))
        (apply (first x) (rest x))
 
+      ;; TODO special form support
+      ;;  (and (seq? x) (special-symbol? (first x)))
+      ;;  (eval x)
+
        :else x))
    args))
 
@@ -91,9 +95,6 @@
                     (throw-parse-error "Unable to resolve symbol"
                                        node-definition
                                        token)
-
-                    (and (seq? token) (special-symbol? (first token)))
-                    (constantly token)
 
                     (and (seq? token) (= 'gx/ref (first token)))
                     (do (swap! props* assoc (second token) any?)
