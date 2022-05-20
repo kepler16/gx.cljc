@@ -1,5 +1,6 @@
 (ns k16.gx.beta.core
   (:require [k16.gx.beta.impl :as impl]
+            [k16.gx.beta.schema :as gxs]
             [clojure.walk :as walk]))
 
 (defn ^:dynamic get-prop [_])
@@ -89,7 +90,7 @@
 ;; TODO Update to work with new structure
 (defn normalize-graph-def
   "Given a component definition, "
-  [node-definition]
+  [node-definition graph-config]
   (let [component (when (map? node-definition)
                     (some-> node-definition :gx/component))
         new-def {:gx/vars {:normalised true}
@@ -117,10 +118,11 @@
 (defn normalize-graph
   "Given a graph definition, return a normalised form. idempotent.
   This acts as the static analysis step of the graph"
-  [graph-definition]
+  [graph-definition graph-config]
+  (gxs/conform-graph-config! graph-config)
   (->> graph-definition
        (map (fn [[k v]]
-              [k (normalize-graph-def v)]))
+              [k (normalize-graph-def v graph-config)]))
        (into {})))
 
 (defn graph-dependencies [graph signal-key]
