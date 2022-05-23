@@ -9,24 +9,27 @@
             #?@(:cljs [[cljs.test :refer-macros [deftest is testing]]
                        [test-utils :refer [slurp]]])))
 
+(def TestCoponentProps
+  {:a [:map [:nesed-b :pos-int]]})
+
 ;; this component is linked in fixtures/graphs.edn
 (defcomponent test-component
-  {:gx/start {:processor
+  {:gx/start {:props TestCoponentProps
+              :processor
               (fn [{:keys [props _value]}]
                 (let [a (:a props)]
                   (atom
-                   (assoc a :nested-a-x2 (* 2 (:nested-a a))))))
-              :props {:a [:map [:nesed-b :pos-int]]}}
+                   (assoc a :nested-a-x2 (* 2 (:nested-a a))))))}
    :gx/stop {:processor (fn [{:keys [_props value]}]
                           nil)}})
 
 (defcomponent test-component-2
-  {:gx/start {:processor
+  {:gx/start {:props TestCoponentProps
+              :processor
               (fn [{:keys [props _value]}]
                 (let [a (:a props)]
                   (atom
-                   (assoc a :some-value (+ 2 (:nested-a a))))))
-              :props {:a [:map [:nesed-b :pos-int]]}}
+                   (assoc a :some-value (+ 2 (:nested-a a))))))}
    :gx/stop {:processor (fn [{:keys [_props value]}]
                           nil)}})
 
