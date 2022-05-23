@@ -13,7 +13,12 @@
        :clj (var-get (requiring-resolve
                       (impl/namespace-symbol sym))))))
 
-(defn evaluate
+(defn simple-evaluate
+  "A postwalk runtime signal processor evaluator, works most of the time.
+  Doesn't support special symbols and macros, basically just function application.
+  For cljs, consider compiled components or sci-evaluator, would require allowing
+  for swappable evaluation stategies. Point to docs, to inform how to swap evaluator,
+  or alternative ways to specify functions (that get compiled) that can be used."
   [props args]
   (walk/postwalk
    (fn [x]
@@ -39,7 +44,7 @@
                   (fn? w) (w)
 
                   (and (seq? w) (fn? (first w)))
-                  (evaluate props w)
+                  (simple-evaluate props w)
 
                   :else w))})
 
