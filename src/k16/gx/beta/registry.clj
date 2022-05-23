@@ -13,11 +13,10 @@
 
 (defmacro defcomponent
   "Define new component and register (cljs only, expands to plain def on jvm)"
-  [cname body-map]
+  [cname & body]
   (if (:ns &env)
     (let [qualified-symbol# (qualify-sym (:ns &env) cname)]
       `(list
-        (def ~cname ~body-map)
-        (swap! component-registry* assoc '~qualified-symbol# ~cname)
-        ~body-map))
-    `(def ~cname ~body-map)))
+        (def ~cname ~@body)
+        (swap! component-registry* assoc '~qualified-symbol# ~cname)))
+    `(def ~cname ~@body)))
