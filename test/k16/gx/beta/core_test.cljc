@@ -1,12 +1,34 @@
 (ns k16.gx.beta.core-test
-  (:require [k16.gx.beta.core :as gx]
+  (:require [clojure.edn :as edn]
+            [k16.gx.beta.core :as gx]
             [k16.gx.beta.schema :as gxs]
-            [clojure.edn :as edn]
             [malli.core :as m]
             [malli.error :as me]
-            #?(:clj [clojure.test :refer [deftest testing is]])
-            #?(:cljs [cljs.test :refer-macros [deftest is testing]])
-            #?(:cljs [test-utils :refer [slurp]])))
+            [k16.gx.beta.registry :refer [defcomponent]]
+            #?(:clj [clojure.test :refer [deftest is testing]])
+            #?@(:cljs [[cljs.test :refer-macros [deftest is testing]]
+                       [test-utils :refer [slurp]]])))
+
+;; this component is linked in fixtures/graphs.edn
+(defcomponent test-component
+  {:gx/start {:processor
+              (fn [{:keys [props _value]}]
+                (let [a (:a props)]
+                  (atom
+                   (assoc a :nested-a-x2 (* 2 (:nested-a a))))))
+              :props {:a [:map [:nesed-b :pos-int]]}}
+   :gx/stop {:processor (fn [{:keys [_props value]}]
+                          nil)}})
+
+(defcomponent test-component-2
+  {:gx/start {:processor
+              (fn [{:keys [props _value]}]
+                (let [a (:a props)]
+                  (atom
+                   (assoc a :some-value (+ 2 (:nested-a a))))))
+              :props {:a [:map [:nesed-b :pos-int]]}}
+   :gx/stop {:processor (fn [{:keys [_props value]}]
+                          nil)}})
 
 (defn load-config []
   (let [path "test/fixtures/graphs.edn"]
@@ -14,7 +36,7 @@
 
 (def graph-config
   {:signals {:gx/start {:order :topological
-                        :from-state #{:stopped :uninitialized}
+                        :from-state #{:stopped gx/INITIAL_STATE}
                         :to-state :started}
              :gx/stop {:order :reverse-topological
                        :from-state #{:started}
@@ -32,10 +54,10 @@
 
     (testing "topo sorting"
       (is (= (gx/topo-sort normalized :gx/start graph-config)
-             '(:a :z :y :b))
+             '(:a :z :y :b :c :x))
           "should be topologically")
       (is (= (gx/topo-sort normalized :gx/stop graph-config)
-             '(:b :y :z :a))
+             '(:x :c :b :y :z :a))
           "should be reverse-topologically"))
 
     (let [started (gx/signal normalized :gx/start graph-config)
@@ -43,21 +65,29 @@
 
       (testing "graph should start correctly"
         (is (= (gx/system-state started)
-               {:a :started, :z :started, :y :started, :b :started})
+               {:a :started, :z :started, :y :started,
+                :b :started :c :started :x :started})
             "all nodes should be started")
-        (is (= (gx/system-value started)
-               {:a {:nested-a 1}, :z 1, :y nil, :b 3})))
+        (is (= (dissoc (gx/system-value started) :c :x)
+               {:a {:nested-a 1}, :z 1, :y nil, :b 3}))
+
+        (is (= @(:c (gx/system-value started))
+               {:nested-a 1, :nested-a-x2 2}))
+
+        (is (= @(:x (gx/system-value started))
+               {:nested-a 1, :some-value 3})))
 
       (testing "graph should stop correctly, nodes without signal handler
                 should not change state and value"
         (is (= (gx/system-state stopped)
-               {:a :started, :z :started, :y :started, :b :stopped})
+               {:a :stopped, :z :stopped, :y :stopped,
+                :b :stopped :c :stopped :x :stopped})
             "all nodes should be stopped")
         (is (= (gx/system-value stopped)
-               {:a {:nested-a 1}, :z 1, :y nil, :b nil}))))))
+               {:a {:nested-a 1}, :z 1, :y nil, :b nil :c nil :x nil}))))))
 
-;; TODO: should we support special forms inside config e.g. throw?
-;; currently throws error
+;; TODO: should we support special forms inside config e.g. throw,if,recur etc.?
+;; currently not supported and throws error
 (deftest failed-normalization-test
   (let [custom-config {:signals
                        {:custom/start {:order :topological
@@ -75,5 +105,23 @@
                     :custom/stop '(println "stopping")}}]
     (is (thrown-with-msg?
          #?(:clj Exception :cljs js/Error)
-         #"Unable to evaluate form 'throw'"
+         #"Special forms are not supported 'throw'"
          (gx/normalize-graph config custom-config)))))
+
+(deftest component-support-test
+  (let [graph {:a {:nested-a 1}
+               :c {:gx/component 'k16.gx.beta.core-test/test-component}}
+        norm (gx/normalize-graph graph graph-config)
+        started (gx/signal norm :gx/start graph-config)
+        stopped (gx/signal started :gx/stop graph-config)]
+    (is (= (gx/system-state started)
+           {:a :started, :c :started}))
+    (is (= (:a (gx/system-value started))
+           {:nested-a 1}))
+    (is (= @(:c (gx/system-value started))
+           {:nested-a 1, :nested-a-x2 2}))
+
+    (is (= (gx/system-state stopped)
+           {:a :stopped, :c :stopped}))
+    (is (= (gx/system-value stopped)
+           {:a {:nested-a 1} :c nil}))))

@@ -4,7 +4,7 @@
                 [juxt/clip "0.27.0"]]
  :builds
  {:gx
-  {:target    :node-library
+  {:target    :npm-module
    :output-to "out/gx.js"
    :output-dir "out"}
 

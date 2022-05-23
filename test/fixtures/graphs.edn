@@ -2,4 +2,7 @@
  :z (get (gx/ref :a) :nested-a)
  :y (println "starting")
  :b {:gx/start (+ (gx/ref :z) 2)
-     :gx/stop (println "stopping")}}
+     :gx/stop (println "stopping")}
+ :c {:gx/component k16.gx.beta.core-test/test-component}
+ :x {:gx/component k16.gx.beta.core-test/test-component-2}
+ }
