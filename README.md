@@ -1,5 +1,9 @@
 ![GX Library Banner](/docs/static/img/banner.png)
 
+# [Documentation](https://gx.kepler16.com)
+
+# Contributing
+
 ## To run clj tests
 
 ```bash
