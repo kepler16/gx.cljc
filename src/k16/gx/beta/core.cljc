@@ -42,18 +42,6 @@
        :else x))
    form))
 
-;; (defn gx-signal-wrapper
-;;   [props w]
-;;   {:props props
-;;    :processor (fn signal-wrapper [{:keys [props _value]}]
-;;                 (cond
-;;                   (fn? w) (w)
-
-;;                   (and (seq? w) (fn? (first w)))
-;;                   (postwalk-evaluate props w)
-
-;;                   :else w))})
-
 (defn throw-parse-error
   [msg node-definition token]
   (throw (ex-info (str msg " '" (pr-str token) "'")
@@ -93,23 +81,29 @@
   (let [signal-config (get-in graph-config [:signals signal-key])
         ;; is this map a map based def, or a runnable form
         def? (and (map? signal-definition)
-                  (some (into #{} [:gx/props :gx/props-fn :gx/processor :gx/deps :gx/resolved-props]) (keys signal-definition)))
-        with-pushed-down-form (if def?
-                                signal-definition
-                                (let [{:keys [form env]} (form->runnable signal-definition)]
-                                  {:gx/processor (fn auto-signal-processor [{:keys [props]}]
-                                                   (postwalk-evaluate props form))
-                                   :gx/deps env
-                                   :gx/resolved-props (->> env
-                                                           (map (fn [dep]
-                                                                  [dep (list 'gx/ref dep)]))
-                                                           (into {}))}))
-        with-resolved-props (if (:gx/resolved-props with-pushed-down-form)
-                              with-pushed-down-form
-                              (let [{:keys [form env]} (form->runnable (:gx/props with-pushed-down-form))]
-                                (merge with-pushed-down-form
-                                       {:gx/resolved-props form
-                                        :gx/deps env})))]
+                  (some #{:gx/props :gx/props-fn
+                          :gx/processor :gx/deps
+                          :gx/resolved-props}
+                        (keys signal-definition)))
+        with-pushed-down-form
+        (if def?
+          signal-definition
+          (let [{:keys [form env]} (form->runnable signal-definition)]
+            {:gx/processor (fn auto-signal-processor [{:keys [props]}]
+                             (postwalk-evaluate props form))
+             :gx/deps env
+             :gx/resolved-props (->> env
+                                     (map (fn [dep]
+                                            [dep (list 'gx/ref dep)]))
+                                     (into {}))}))
+        with-resolved-props
+        (if (:gx/resolved-props with-pushed-down-form)
+          with-pushed-down-form
+          (let [{:keys [form env]} (form->runnable
+                                    (:gx/props with-pushed-down-form))]
+            (merge with-pushed-down-form
+                   {:gx/resolved-props form
+                    :gx/deps env})))]
     with-resolved-props))
 
 (defn get-initial-signal
@@ -160,15 +154,15 @@
   "Given a graph definition and config, return a normalised form. Idempotent.
    This acts as the static analysis step of the graph.
    Returns tuple of error explanation (if any) and normamized graph."
-  [graph-config graph-definition]
+  [graph-definition graph-config]
   (let [graph-issues (gxs/validate-graph graph-definition)
         config-issues (gxs/validate-graph-config graph-config)]
     (cond
-      ;; graph-issues (throw (ex-info "Graph definition error", graph-issues))
-      ;; config-issues (throw (ex-info "Graph config error" config-issues))
+      graph-issues (throw (ex-info "Graph definition error", graph-issues))
+      config-issues (throw (ex-info "Graph config error" config-issues))
       :else (->> graph-definition
                  (map (fn [[k v]]
-                        [k (normalize-node-def graph-config v)]))
+                        [k (normalize-node-def v graph-config)]))
                  (into {})))))
 
 (defn graph-dependencies [graph signal-key]
@@ -185,12 +179,11 @@
           graph-deps (graph-dependencies graph deps-from)
           sorted-raw (impl/sccs graph-deps)]
     ;; handle dependency errors
-      (let [errors (->> sorted-raw
-                        (impl/dependency-errors graph-deps)
-                        (map impl/human-render-dependency-error))]
-
-        (when (seq errors)
-          (throw (ex-info (str errors) {:errors errors}))))
+      (when-let [errors (->> sorted-raw
+                             (impl/dependency-errors graph-deps)
+                             (map impl/human-render-dependency-error)
+                             (seq))]
+        (throw (ex-info (str errors) {:errors errors})))
 
       (let [topo-sorted (map first sorted-raw)]
         (if (= :topological (:order signal-config))
