@@ -10,27 +10,29 @@
                        [test-utils :refer [slurp]]])))
 
 (def TestCoponentProps
-  {:a [:map [:nesed-b :pos-int]]})
+  [:map [:a [:map [:nested-a pos-int?]]]])
 
 ;; this component is linked in fixtures/graphs.edn
 (defcomponent test-component
-  {:gx/start {:props TestCoponentProps
-              :processor
+  {:gx/start {:gx/props-schema TestCoponentProps
+              :gx/props {:a '(gx/ref :a)}
+              :gx/processor
               (fn [{:keys [props _value]}]
                 (let [a (:a props)]
                   (atom
                    (assoc a :nested-a-x2 (* 2 (:nested-a a))))))}
-   :gx/stop {:processor (fn [{:keys [_props value]}]
+   :gx/stop {:gx/processor (fn [{:keys [_props value]}]
                           nil)}})
 
 (defcomponent test-component-2
-  {:gx/start {:props TestCoponentProps
-              :processor
+  {:gx/start {:gx/props-schema TestCoponentProps
+              :gx/props {:a '(gx/ref :a)}
+              :gx/processor
               (fn [{:keys [props _value]}]
                 (let [a (:a props)]
                   (atom
                    (assoc a :some-value (+ 2 (:nested-a a))))))}
-   :gx/stop {:processor (fn [{:keys [_props value]}]
+   :gx/stop {:gx/processor (fn [{:keys [_props value]}]
                           nil)}})
 
 (defn load-config []
@@ -47,8 +49,8 @@
                        :deps-from :gx/start}}})
 
 (deftest graph-tests
-  (let [config (load-config)
-        normalized (gx/normalize-graph config graph-config)]
+  (let [graph (load-config)
+        normalized (gx/normalize-graph graph graph-config)]
     (testing "normalization structure should be valid"
       (is
        (m/validate gxs/?NormalizedGraphDefinition normalized)
@@ -89,8 +91,6 @@
         (is (= (gx/system-value stopped)
                {:a {:nested-a 1}, :z 1, :y nil, :b nil :c nil :x nil}))))))
 
-;; TODO: should we support special forms inside config e.g. throw,if,recur etc.?
-;; currently not supported and throws error
 (deftest failed-normalization-test
   (let [custom-config {:signals
                        {:custom/start {:order :topological
