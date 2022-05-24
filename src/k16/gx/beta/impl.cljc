@@ -101,3 +101,16 @@
     #?(:clj sym :cljs (get @reg/component-registry* sym))
     #?(:clj (symbol "clojure.core" (name sym))
        :cljs ((ns-publics 'cljs.core) sym))))
+
+(def mergable? (every-pred #(and (map? %) (not (record? %)))))
+
+(defn merger
+  [left right]
+  (if (mergable? left right)
+    (merge-with merger left right)
+    (last right)))
+
+(defn deep-merge
+  "Recursively merges maps."
+  [& maps]
+  (reduce merger maps))
