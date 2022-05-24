@@ -215,6 +215,11 @@
 (defn system-state [graph]
   (system-property graph :gx/state))
 
+(defn validate-props
+  [schema props]
+  (when-let [error (and schema (m/explain schema props))]
+    (me/humanize error)))
+
 (defn- run-processor
   [processor arg-map]
   (try
@@ -243,46 +248,44 @@
   "Trigger a signal through a node, assumes dependencies have been run.
    If node does not support signal then do nothing"
   [graph node-key signal-key graph-config]
-  (let [
-        signal-config (-> graph-config :signals signal-key)
-        {:keys [deps-from to-state]} signal-config
+  (let [signal-config (-> graph-config :signals signal-key)
+        {:keys [_deps-from to-state]} signal-config
         node (get graph node-key)
-        node-state (:gx/state node)
+        ;; node-state (:gx/state node)
         signal-def (get node signal-key)
-        {:gx/keys [props processor resolved-props props-fn]} signal-def
+        {:gx/keys [processor resolved-props deps props-schema]} signal-def
         ;; _ (validate-signal graph node-key signal-key graph-config)
         ;;
         ;; :deps-from is ignored if component have :props
-        props (if (and (not props) deps-from)
-                (-> node deps-from :gx/props)
-                props)
+        ;; props (if (and (not props) deps-from)
+        ;;         (-> node deps-from :gx/props)
+        ;;         props)
         ;; TODO: add props validation using malli schema
-        dep-nodes (system-value (select-keys graph (:gx/deps signal-def)))]
+        dep-nodes (system-value (select-keys graph deps))]
         ;; props-falures (->> dep-nodes
         ;;                    (system-failure)
         ;;                    (filter :gx/failure))]
         ;;
-    (println node-key)
-    (def node node)
-    (def node-state node-state)
-    (def props props)
-    (def dep-nodes dep-nodes)
-    (def dep-nodes dep-nodes)
     (cond
           ;; (seq props-falures)
           ;; (assoc node :gx/failure {:deps-failures props-falures})
+      (fn? processor)
+      (let [props-result (postwalk-evaluate dep-nodes resolved-props)
+            [error data] (if-let [e (validate-props props-schema props-result)]
+                           [{:props-value props-result
+                             :malli-schema props-schema
+                             :malli-error e}]
+                           (run-processor
+                            processor {:props props-result
+                                       :value (:gx/value node)}))]
+        (if error
+          (assoc node :gx/failure error)
+          (-> node
+              (assoc :gx/value data)
+              (assoc :gx/state to-state))))
 
-          (ifn? processor)
-          (let [props-result (postwalk-evaluate dep-nodes (:gx/resolved-props signal-def))
+      :else (assoc node :gx/state to-state))))
 
-                [error data] (run-processor
-                              processor {:props props-result
-                                         :value (:gx/value node)})]
-            (if error
-              (assoc node :gx/failure error)
-              (-> node
-                  (assoc :gx/value data)
-                  (assoc :gx/state to-state)))))))
 
 
 (defn signal [graph signal-key graph-config]
