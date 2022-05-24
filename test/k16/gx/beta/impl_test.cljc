@@ -3,9 +3,9 @@
             [k16.gx.beta.impl :as impl]))
 
 (deftest deep-merge-test
-  (testing "it should ignore nil in merge pairs"
+  (testing "it should handle nil properly"
     (is (= (impl/deep-merge #:gx{:start {:nested-a 1}} nil)
-           #:gx{:start {:nested-a 1}}))
+           nil))
     (is (= (impl/deep-merge nil #:gx{:start {:nested-a 1}})
            #:gx{:start {:nested-a 1}})))
   (testing "it should deep merge signal maps into one"

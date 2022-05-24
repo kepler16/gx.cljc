@@ -108,7 +108,7 @@
   [left right]
   (if (mergable? left right)
     (merge-with merger left right)
-    (or right left)))
+    right))
 
 (defn deep-merge
   "Recursively merges maps."
