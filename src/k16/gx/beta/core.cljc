@@ -1,9 +1,9 @@
 (ns k16.gx.beta.core
   (:require [clojure.walk :as walk]
             [k16.gx.beta.impl :as impl]
-            [k16.gx.beta.registry :as reg]
             [k16.gx.beta.schema :as gxs]
-            [k16.gx.alpha :as gx]))
+            [malli.core :as m]
+            [malli.error :as me]))
 
 (defonce INITIAL_STATE :uninitialized)
 
@@ -74,8 +74,8 @@
                       sub-form)
 
                   :else sub-form))))]
-      {:env @props*
-       :form resolved-form}))
+    {:env @props*
+     :form resolved-form}))
 
 (defn normalize-signal-def [graph-config signal-definition signal-key]
   (let [signal-config (get-in graph-config [:signals signal-key])
@@ -222,8 +222,7 @@
 
 (defn validate-signal
   [graph node-key signal-key graph-config]
-  (let [
-        {:keys [from-state to-state deps-from]}
+  (let [{:keys [from-state to-state deps-from]}
         (-> graph-config :signals signal-key)
         node (get graph node-key)
         node-state (:gx/state node)
@@ -279,12 +278,9 @@
 
       :else (assoc node :gx/state to-state))))
 
-
-
-(defn signal [graph signal-key graph-config]
-  (let [normalised-graph (normalize-graph graph-config graph)
+(defn signal [normalised-graph signal-key graph-config]
+  (let [;normalised-graph (normalize-graph graph-config graph)
         sorted (topo-sort normalised-graph signal-key graph-config)]
-    (def sorted sorted)
     (reduce
      (fn [graph node-key]
        (let [node (node-signal graph node-key signal-key graph-config)]
@@ -292,18 +288,43 @@
      normalised-graph
      sorted)))
 
-
 (comment
-  (def my-component
-    {:gx/start {:gx/processor (fn [{:keys [props]}]
-                                (println "starting" (:w props))
-                                :d-started)
-                :gx/props-schema [:map
-                                  [:w int?]
-                                  [:port int?]]}})
-  (def g
-    {:a 2
-     :b '(inc (gx/ref :a))})
+  (postwalk-evaluate {} {:nested-a 1})
+  (do
+    (def ?TestCoponentProps
+      [:map [:config [:map [:nested-a pos-int?]]]])
+
+    (def my-component
+      {:gx/start {:gx/props {:config '(gx/ref :c)}
+                  :gx/props-schema ?TestCoponentProps
+                  :gx/processor
+                  (fn [{:keys [props _value]}]
+                    (when-let [a (:config props)]
+                      (atom
+                       (assoc a :nested-a-x2 (* 2 (:nested-a a))))))}
+       :gx/stop {:gx/processor (fn [{:keys [_props value]}]
+                                 nil)}})
+
+    (def config {:c {:nested-a 1}
+                 :z '(+ 10 (get (gx/ref :c) :nested-a))
+                 :comp {:gx/start {:gx/props
+                                   {:config
+                                    {:nested-a '(gx/ref :z)}}}
+                        :gx/component 'k16.gx.beta.core/my-component}})
+    (def norm (normalize-graph config default-graph-config))
+    ;; norm
+    ;; (select-keys norm #{:c})
+    (def started (signal norm :gx/start default-graph-config))
+
+    (def stopped (signal started :gx/stop default-graph-config))
+    [;;  norm
+     started
+    ;;  stopped
+     ]
+    ;; nil
+    ;; started
+    )
+
      ;; :c {:gx/start '(inc (gx/ref :b))
      ;;     :gx/stop '(println "stopping")}
      ;; :d {:gx/start {:gx/processor (fn [{:keys [props]}]
@@ -319,11 +340,18 @@
 
   (normalize-graph default-graph-config g)
 
+
   (signal g :gx/start default-graph-config)
+
+  (signal g :gx/stop default-graph-config)
+
 
   (def normalised
     (normalize-graph default-graph-config g))
 
+
   (signal g :gx/start default-graph-config)
 
-  (:c normalised))
+
+  (:c normalised)
+  )
