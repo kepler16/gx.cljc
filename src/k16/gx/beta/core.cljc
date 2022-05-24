@@ -134,17 +134,17 @@
         ;; merge in component
         with-component (impl/deep-merge
                         component (dissoc with-pushed-down-form :gx/component))
-        normalised-def (merge
+        normalized-def (merge
                         with-component
                         {:gx/state INITIAL_STATE
                          :gx/value nil})
-        signal-defs (select-keys normalised-def signals)
+        signal-defs (select-keys normalized-def signals)
         normalised-signal-defs
         (->> signal-defs
              (map (fn [[k v]]
                     [k (normalize-signal-def graph-config v k)]))
              (into {}))]
-    (merge normalised-def
+    (merge normalized-def
            normalised-signal-defs
            {:gx/type (if def? :component :static)})))
 
