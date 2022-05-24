@@ -89,79 +89,6 @@
       {:env @props*
        :form resolved-form}))
 
-(comment
-  (def xxx
-    (form->runnable '(get {:s 2} :s)))
-
-  (postwalk-evaluate {} (:form xxx))
-
-
-  (def xxx
-    (form->runnable '(get {:s (gx/ref :x)} :s)))
-
-  (postwalk-evaluate {:x 4} (:form xxx)))
-
-
-;; (defn signal-processor-form->fn
-;;   [node-definition]
-;;   (let [props* (atom {})
-;;         node
-;;         (->> node-definition
-;;              (walk/postwalk
-;;               (fn [token]
-;;                 (cond
-;;                   (= 'gx/ref token) token
-
-;;                   (special-symbol? token)
-;;                   (throw-parse-error "Special forms are not supported"
-;;                                      node-definition
-;;                                      token)
-
-;;                   #?@(:clj [(and (symbol? token) (= \. (first (str token))))
-;;                             (fn [v & args]
-;;                               (clojure.lang.Reflector/invokeInstanceMethod
-;;                                v
-;;                                (subs (str token) 1)
-;;                                (into-array Object args)))]
-;;                       :default [])
-
-;;                   (resolve-symbol token) (resolve-symbol token)
-
-;;                   (symbol? token)
-;;                   (throw-parse-error "Unable to resolve symbol"
-;;                                      node-definition
-;;                                      token)
-
-;;                   (and (seq? token) (= 'gx/ref (first token)))
-;;                   (do (swap! props* assoc (second token) any?)
-;;                       token)
-
-;;                   :else token))))]
-;;     (gx-signal-wrapper @props* node)))
-
-;; (defn signal-processor-definition->signal-processor
-;;   [node-definition]
-;;   (cond
-;;     (or (fn? node-definition)
-;;         (map? node-definition))
-;;     (gx-signal-wrapper {} node-definition)
-
-;;     #?@(:clj
-;;         [(symbol? node-definition)
-;;          (gx-signal-wrapper {} (requiring-resolve node-definition))])
-
-;;     (list? node-definition)
-;;     (signal-processor-form->fn node-definition)
-
-;;     :else (throw (ex-info
-;;                   (str "Unsupported signal processor: "
-;;                        (pr-str node-definition))
-;;                   {:body node-definition}))))
-
-(defn deep-merge [& maps]
-  ;; TODO Turn this into an actual deep merge
-  (apply merge maps))
-
 (defn normalize-signal-def [graph-config signal-definition signal-key]
   (let [signal-config (get-in graph-config [:signals signal-key])
         ;; is this map a map based def, or a runnable form
@@ -199,7 +126,8 @@
                                 {:gx/start node-definition})
         component (some-> with-pushed-down-form :gx/component resolve-symbol)
         ;; merge in component
-        with-component (deep-merge component (dissoc with-pushed-down-form :gx/component))
+        with-component (impl/deep-merge
+                        component (dissoc with-pushed-down-form :gx/component))
         normalised-def (merge
                         with-component
                         {:gx/state INITIAL_STATE
