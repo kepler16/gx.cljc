@@ -112,18 +112,30 @@
                                         :gx/deps env})))]
     with-resolved-props))
 
+(defn get-initial-signal
+  "Finds first signal, which is launched on normalized graph with
+   :uninitialized nodes. Used on static nodes."
+  [graph-config]
+  (->> graph-config
+       :signals
+       (filter (fn [[_ body]]
+                 ((:from-state body) INITIAL_STATE)))
+       (map first)
+       first))
 
 (defn normalize-node-def
   "Given a component definition, "
-  [graph-config node-definition]
+  [node-definition graph-config]
   (let [;; set of signals defined in the graph
         signals (set (keys (:signals graph-config)))
         ;; is this map a map based def, or a runnable form
         def? (and (map? node-definition)
-                  (some (into #{} (concat signals [:gx/component])) (keys node-definition)))
+                  (some (into #{} (concat signals [:gx/component]))
+                        (keys node-definition)))
+        initial-signal (get-initial-signal graph-config)
         with-pushed-down-form (if def?
                                 node-definition
-                                {:gx/start node-definition})
+                                {initial-signal node-definition})
         component (some-> with-pushed-down-form :gx/component resolve-symbol)
         ;; merge in component
         with-component (impl/deep-merge
@@ -132,25 +144,15 @@
                         with-component
                         {:gx/state INITIAL_STATE
                          :gx/value nil})
-
         signal-defs (select-keys normalised-def signals)
-        normalised-signal-defs (->> signal-defs
-                                    (map (fn [[k v]]
-                                           [k (normalize-signal-def graph-config v k)]))
-                                    (into {}))]
-    (merge normalised-def normalised-signal-defs)))
-
-
-(comment
-  (def graph-config-a {:signals {:gx/start {:order :topological}}})
-
-  (normalize-signal-def graph-config-a '(get {:s (gx/ref :a)} :s) :a)
-
-  (normalize-node-def  graph-config-a '(get {:s (gx/ref :a)} :s))
-  (normalize-node-def  graph-config-a {:gx/start '(get {:s (gx/ref :a)} :s)})
-
-  (normalize-node-def  graph-config-a {:gx/start {:gx/processor (fn [self] self)
-                                                  :gx/props {:a '(get {:s (gx/ref :a)} :s)}}}))
+        normalised-signal-defs
+        (->> signal-defs
+             (map (fn [[k v]]
+                    [k (normalize-signal-def graph-config v k)]))
+             (into {}))]
+    (merge normalised-def
+           normalised-signal-defs
+           {:gx/type (if def? :component :static)})))
 
 ;; TODO: write check for signal conflicts
 ;; - any state should have only one signal to transition from it
