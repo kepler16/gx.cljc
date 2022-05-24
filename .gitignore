@@ -9,3 +9,4 @@
 /.portal/
 /out/
 /.shadow-cljs/
+/.log/
