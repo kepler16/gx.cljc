@@ -146,6 +146,8 @@
              (into {}))]
     (merge normalized-def
            normalised-signal-defs
+           ;; Useful information, but lets consider semantics before
+           ;; using the value to determine behaviour
            {:gx/type (if def? :component :static)})))
 
 ;; TODO: write check for signal conflicts
@@ -261,7 +263,11 @@
     (cond
           ;; (seq props-falures)
           ;; (assoc node :gx/failure {:deps-failures props-falures})
+      ;; TODO Check that we are actually turning symbols into resolved functions
+      ;; in the normalisation step
       (fn? processor)
+      ;; either use resolved-props, or call props-fn and pass in (system-value graph deps), result
+      ;; of props-fn, should be validated against props-schema
       (let [props-result (postwalk-evaluate dep-nodes resolved-props)
             [error data] (if-let [e (validate-props props-schema props-result)]
                            [{:props-value props-result
@@ -276,7 +282,7 @@
               (assoc :gx/value data)
               (assoc :gx/state to-state))))
 
-      :else (assoc node :gx/state to-state))))
+      :else node)))
 
 (defn signal [normalised-graph signal-key graph-config]
   (let [;normalised-graph (normalize-graph graph-config graph)
