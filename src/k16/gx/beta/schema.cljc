@@ -27,8 +27,8 @@
 
 (def ?SignalDefinition
   [:map
-   [:processor ifn?]
-   [:props {:optional true} [:map-of keyword? any?]]])
+   [:gx/processor ifn?]
+   [:gx/props {:optional true} [:map-of keyword? any?]]])
 
 (def ?ComponentDefinition
   [:map-of keyword? ?SignalDefinition])
