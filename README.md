@@ -1,4 +1,4 @@
-![GX Library Banner](/assets/banner.png)
+![GX Library Banner](/docs/static/img/banner.png)
 
 ## To run clj tests
 

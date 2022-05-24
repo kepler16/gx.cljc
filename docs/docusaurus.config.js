@@ -6,8 +6,8 @@ const darkCodeTheme = require('prism-react-renderer/themes/dracula');
 
 /** @type {import('@docusaurus/types').Config} */
 const config = {
-  title: 'My Site',
-  tagline: 'Dinosaurs are cool',
+  title: 'gx.cljc',
+  tagline: 'a progressive graph execution library',
   url: 'https://gx.kepler16.com',
   baseUrl: '/',
   onBrokenLinks: 'throw',
@@ -29,17 +29,12 @@ const config = {
       ({
         docs: {
           sidebarPath: require.resolve('./sidebars.js'),
+          routeBasePath: '/',
+
           // Please change this to your repo.
           // Remove this to remove the "edit this page" links.
           editUrl:
-          'https://github.com/kepler16/gx.cljc/tree/gx-v2/docs/docs/',
-        },
-        blog: {
-          showReadingTime: true,
-          // Please change this to your repo.
-          // Remove this to remove the "edit this page" links.
-          editUrl:
-            'https://github.com/facebook/docusaurus/tree/main/packages/create-docusaurus/templates/shared/',
+          'https://github.com/kepler16/gx.cljc/tree/gx-v2/docs/',
         },
         theme: {
           customCss: require.resolve('./src/css/custom.css'),
@@ -52,7 +47,7 @@ const config = {
     /** @type {import('@docusaurus/preset-classic').ThemeConfig} */
     ({
       navbar: {
-        title: 'GX.cljc',
+        title: 'gx.cljc',
         logo: {
           alt: 'GX',
           src: 'img/logo.svg',
@@ -62,9 +57,8 @@ const config = {
             type: 'doc',
             docId: 'intro',
             position: 'left',
-            label: 'Tutorial',
+            label: 'Documentation',
           },
-          {to: '/blog', label: 'Blog', position: 'left'},
           {
             href: 'https://github.com/kepler16/gx.cljc',
             label: 'GitHub',
@@ -76,11 +70,11 @@ const config = {
         style: 'dark',
         links: [
           {
-            title: 'Docs',
+            title: 'Documentation',
             items: [
               {
-                label: 'Tutorial',
-                to: '/docs/intro',
+                label: 'Intro',
+                to: '/',
               },
             ],
           },
@@ -88,12 +82,8 @@ const config = {
             title: 'Community',
             items: [
               {
-                label: 'Stack Overflow',
-                href: 'https://stackoverflow.com/questions/tagged/docusaurus',
-              },
-              {
-                label: 'Discord',
-                href: 'https://discordapp.com/invite/docusaurus',
+                label: 'Linkedin',
+                href: 'https://www.linkedin.com/company/kepler16',
               },
               {
                 label: 'Twitter',
@@ -105,12 +95,12 @@ const config = {
             title: 'More',
             items: [
               {
-                label: 'Blog',
-                to: '/blog',
+                label: 'Kepler 16',
+                to: 'https://kepler16.com',
               },
               {
                 label: 'GitHub',
-                href: 'https://github.com/facebook/docusaurus',
+                href: 'https://github.com/kepler16/gx',
               },
             ],
           },

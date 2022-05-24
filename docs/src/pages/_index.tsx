@@ -29,12 +29,14 @@ export default function Home(): JSX.Element {
   const {siteConfig} = useDocusaurusContext();
   return (
     <Layout
-      title={`Hello from ${siteConfig.title}`}
-      description="Description will go into a meta tag in <head />">
-      <HomepageHeader />
-      <main>
-        <HomepageFeatures />
-      </main>
-    </Layout>
+      title={`${siteConfig.title}`}
+      description="a progressive graph execution library">
+      <img src="/img/banner.png" />
+          {/* <HomepageFeatures /> */}
+          <div style={{
+            height: "250px",
+            width: "100%",
+            backgroundColor: "#303846" }}/>
+      </Layout>
   );
 }
