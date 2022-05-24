@@ -97,7 +97,7 @@ const config = {
               },
               {
                 label: 'Twitter',
-                href: 'https://twitter.com/docusaurus',
+                href: 'https://twitter.com/keplersixteen',
               },
             ],
           },
