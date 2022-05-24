@@ -2,9 +2,19 @@
   (:require [clojure.walk :as walk]
             [k16.gx.beta.impl :as impl]
             [k16.gx.beta.registry :as reg]
-            [k16.gx.beta.schema :as gxs]))
+            [k16.gx.beta.schema :as gxs]
+            [k16.gx.alpha :as gx]))
 
 (defonce INITIAL_STATE :uninitialized)
+
+(def default-graph-config
+  {:signals {:gx/start {:order :topological
+                        :from-state #{:stopped INITIAL_STATE}
+                        :to-state :started}
+             :gx/stop {:order :reverse-topological
+                       :from-state #{:started}
+                       :to-state :stopped
+                       :deps-from :gx/start}}})
 
 (defn resolve-symbol
   [sym]
@@ -13,40 +23,36 @@
        :clj (var-get (requiring-resolve
                       (impl/namespace-symbol sym))))))
 
-(defn simple-evaluate
+(defn postwalk-evaluate
   "A postwalk runtime signal processor evaluator, works most of the time.
   Doesn't support special symbols and macros, basically just function application.
   For cljs, consider compiled components or sci-evaluator, would require allowing
   for swappable evaluation stategies. Point to docs, to inform how to swap evaluator,
   or alternative ways to specify functions (that get compiled) that can be used."
-  [props args]
+  [env form]
   (walk/postwalk
    (fn [x]
      (cond
        (and (seq? x) (= 'gx/ref (first x)))
-       (get props (second x))
+       (get env (second x))
 
        (and (seq? x) (fn? (first x)))
        (apply (first x) (rest x))
 
-      ;; TODO special form support
-      ;;  (and (seq? x) (special-symbol? (first x)))
-      ;;  (eval x)
-
        :else x))
-   args))
+   form))
 
-(defn gx-signal-wrapper
-  [props w]
-  {:props props
-   :processor (fn signal-wrapper [{:keys [props _value]}]
-                (cond
-                  (fn? w) (w)
+;; (defn gx-signal-wrapper
+;;   [props w]
+;;   {:props props
+;;    :processor (fn signal-wrapper [{:keys [props _value]}]
+;;                 (cond
+;;                   (fn? w) (w)
 
-                  (and (seq? w) (fn? (first w)))
-                  (simple-evaluate props w)
+;;                   (and (seq? w) (fn? (first w)))
+;;                   (postwalk-evaluate props w)
 
-                  :else w))})
+;;                   :else w))})
 
 (defn throw-parse-error
   [msg node-definition token]
@@ -54,100 +60,169 @@
                   {:form node-definition
                    :expr token})))
 
-(defn signal-processor-form->fn
-  [node-definition]
-  (let [props* (atom {})
-        node
-        (->> node-definition
+(defn form->runnable [form]
+  (let [props* (atom #{})
+        resolved-form
+        (->> form
              (walk/postwalk
-              (fn [token]
+              (fn [sub-form]
                 (cond
-                  (= 'gx/ref token) token
+                  (= 'gx/ref sub-form) sub-form
 
-                  (special-symbol? token)
+                  (special-symbol? sub-form)
                   (throw-parse-error "Special forms are not supported"
-                                     node-definition
-                                     token)
+                                     form
+                                     sub-form)
 
-                  #?@(:clj [(and (symbol? token) (= \. (first (str token))))
-                            (fn [v & args]
-                              (clojure.lang.Reflector/invokeInstanceMethod
-                               v
-                               (subs (str token) 1)
-                               (into-array Object args)))]
-                      :default [])
+                  (resolve-symbol sub-form) (resolve-symbol sub-form)
 
-                  (resolve-symbol token) (resolve-symbol token)
-
-                  (symbol? token)
+                  (symbol? sub-form)
                   (throw-parse-error "Unable to resolve symbol"
-                                     node-definition
-                                     token)
+                                     form
+                                     sub-form)
 
-                  (and (seq? token) (= 'gx/ref (first token)))
-                  (do (swap! props* assoc (second token) any?)
-                      token)
+                  (and (seq? sub-form) (= 'gx/ref (first sub-form)))
+                  (do (swap! props* conj (second sub-form))
+                      sub-form)
 
-                  :else token))))]
-    (gx-signal-wrapper @props* node)))
+                  :else sub-form))))]
+      {:env @props*
+       :form resolved-form}))
 
-(defn signal-processor-definition->signal-processor
-  [node-definition]
-  (cond
-    (or (fn? node-definition)
-        (map? node-definition))
-    (gx-signal-wrapper {} node-definition)
+(comment
+  (def xxx
+    (form->runnable '(get {:s 2} :s)))
 
-    #?@(:clj
-        [(symbol? node-definition)
-         (gx-signal-wrapper {} (requiring-resolve node-definition))])
+  (postwalk-evaluate {} (:form xxx))
 
-    (list? node-definition)
-    (signal-processor-form->fn node-definition)
 
-    :else (throw (ex-info
-                  (str "Unsupported signal processor: "
-                       (pr-str node-definition))
-                  {:body node-definition}))))
+  (def xxx
+    (form->runnable '(get {:s (gx/ref :x)} :s)))
 
-(defn get-initial-signal
-  [graph-config]
-  (->> graph-config
-       :signals
-       (filter (fn [[_ body]]
-                 ((:from-state body) INITIAL_STATE)))
-       (map first)))
+  (postwalk-evaluate {:x 4} (:form xxx)))
+
+
+;; (defn signal-processor-form->fn
+;;   [node-definition]
+;;   (let [props* (atom {})
+;;         node
+;;         (->> node-definition
+;;              (walk/postwalk
+;;               (fn [token]
+;;                 (cond
+;;                   (= 'gx/ref token) token
+
+;;                   (special-symbol? token)
+;;                   (throw-parse-error "Special forms are not supported"
+;;                                      node-definition
+;;                                      token)
+
+;;                   #?@(:clj [(and (symbol? token) (= \. (first (str token))))
+;;                             (fn [v & args]
+;;                               (clojure.lang.Reflector/invokeInstanceMethod
+;;                                v
+;;                                (subs (str token) 1)
+;;                                (into-array Object args)))]
+;;                       :default [])
+
+;;                   (resolve-symbol token) (resolve-symbol token)
+
+;;                   (symbol? token)
+;;                   (throw-parse-error "Unable to resolve symbol"
+;;                                      node-definition
+;;                                      token)
+
+;;                   (and (seq? token) (= 'gx/ref (first token)))
+;;                   (do (swap! props* assoc (second token) any?)
+;;                       token)
+
+;;                   :else token))))]
+;;     (gx-signal-wrapper @props* node)))
+
+;; (defn signal-processor-definition->signal-processor
+;;   [node-definition]
+;;   (cond
+;;     (or (fn? node-definition)
+;;         (map? node-definition))
+;;     (gx-signal-wrapper {} node-definition)
+
+;;     #?@(:clj
+;;         [(symbol? node-definition)
+;;          (gx-signal-wrapper {} (requiring-resolve node-definition))])
+
+;;     (list? node-definition)
+;;     (signal-processor-form->fn node-definition)
+
+;;     :else (throw (ex-info
+;;                   (str "Unsupported signal processor: "
+;;                        (pr-str node-definition))
+;;                   {:body node-definition}))))
+
+(defn deep-merge [& maps]
+  ;; TODO Turn this into an actual deep merge
+  (apply merge maps))
+
+(defn normalize-signal-def [graph-config signal-definition signal-key]
+  (let [signal-config (get-in graph-config [:signals signal-key])
+        ;; is this map a map based def, or a runnable form
+        def? (and (map? signal-definition)
+                  (some (into #{} [:gx/props :gx/props-fn :gx/processor :gx/deps :gx/resolved-props]) (keys signal-definition)))
+        with-pushed-down-form (if def?
+                                signal-definition
+                                (let [{:keys [form env]} (form->runnable signal-definition)]
+                                  {:gx/processor (fn auto-signal-processor [{:keys [props]}]
+                                                   (postwalk-evaluate props form))
+                                   :gx/deps env
+                                   :gx/resolved-props (->> env
+                                                           (map (fn [dep]
+                                                                  [dep (list 'gx/ref dep)]))
+                                                           (into {}))}))
+        with-resolved-props (if (:gx/resolved-props with-pushed-down-form)
+                              with-pushed-down-form
+                              (let [{:keys [form env]} (form->runnable (:gx/props with-pushed-down-form))]
+                                (merge with-pushed-down-form
+                                       {:gx/resolved-props form
+                                        :gx/deps env})))]
+    with-resolved-props))
+
 
 (defn normalize-node-def
   "Given a component definition, "
-  [node-definition graph-config]
-  (let [component (when (map? node-definition)
-                        (some-> node-definition :gx/component resolve-symbol))
-        new-def {:gx/state INITIAL_STATE
-                 :gx/value nil}
+  [graph-config node-definition]
+  (let [;; set of signals defined in the graph
         signals (set (keys (:signals graph-config)))
-        ;; gather initial signals
-        initial-signals (get-initial-signal graph-config)]
-    (cond
-      component (merge component new-def)
-      ;; Already in normalised/semi-normalised form
-      (and (map? node-definition)
-           (some signals (keys node-definition)))
-      (reduce
-       (fn [nd signal]
-         (if (get nd signal)
-           (update nd signal signal-processor-definition->signal-processor)
-           nd))
-       (merge new-def node-definition)
-       signals)
+        ;; is this map a map based def, or a runnable form
+        def? (and (map? node-definition)
+                  (some (into #{} (concat signals [:gx/component])) (keys node-definition)))
+        with-pushed-down-form (if def?
+                                node-definition
+                                {:gx/start node-definition})
+        component (some-> with-pushed-down-form :gx/component resolve-symbol)
+        ;; merge in component
+        with-component (deep-merge component (dissoc with-pushed-down-form :gx/component))
+        normalised-def (merge
+                        with-component
+                        {:gx/state INITIAL_STATE
+                         :gx/value nil})
 
-      :else
-      (reduce
-       (fn [nd signal]
-         (assoc nd signal (signal-processor-definition->signal-processor
-                           node-definition)))
-       new-def
-       initial-signals))))
+        signal-defs (select-keys normalised-def signals)
+        normalised-signal-defs (->> signal-defs
+                                    (map (fn [[k v]]
+                                           [k (normalize-signal-def graph-config v k)]))
+                                    (into {}))]
+    (merge normalised-def normalised-signal-defs)))
+
+
+(comment
+  (def graph-config-a {:signals {:gx/start {:order :topological}}})
+
+  (normalize-signal-def graph-config-a '(get {:s (gx/ref :a)} :s) :a)
+
+  (normalize-node-def  graph-config-a '(get {:s (gx/ref :a)} :s))
+  (normalize-node-def  graph-config-a {:gx/start '(get {:s (gx/ref :a)} :s)})
+
+  (normalize-node-def  graph-config-a {:gx/start {:gx/processor (fn [self] self)
+                                                  :gx/props {:a '(get {:s (gx/ref :a)} :s)}}}))
 
 ;; TODO: write check for signal conflicts
 ;; - any state should have only one signal to transition from it
@@ -155,21 +230,21 @@
   "Given a graph definition and config, return a normalised form. Idempotent.
    This acts as the static analysis step of the graph.
    Returns tuple of error explanation (if any) and normamized graph."
-  [graph-definition graph-config]
+  [graph-config graph-definition]
   (let [graph-issues (gxs/validate-graph graph-definition)
         config-issues (gxs/validate-graph-config graph-config)]
     (cond
-      graph-issues (throw (ex-info "Graph definition error", graph-issues))
-      config-issues (throw (ex-info "Graph config error" config-issues))
+      ;; graph-issues (throw (ex-info "Graph definition error", graph-issues))
+      ;; config-issues (throw (ex-info "Graph config error" config-issues))
       :else (->> graph-definition
                  (map (fn [[k v]]
-                        [k (normalize-node-def v graph-config)]))
+                        [k (normalize-node-def graph-config v)]))
                  (into {})))))
 
 (defn graph-dependencies [graph signal-key]
   (->> graph
        (map (fn [[k node]]
-              (let [deps (-> node signal-key :props keys)]
+              (let [deps (-> node signal-key :deps)]
                 [k (into #{} deps)])))
        (into {})))
 
@@ -219,7 +294,8 @@
 
 (defn validate-signal
   [graph node-key signal-key graph-config]
-  (let [{:keys [from-state to-state deps-from]}
+  (let [
+        {:keys [from-state to-state deps-from]}
         (-> graph-config :signals signal-key)
         node (get graph node-key)
         node-state (:gx/state node)
@@ -237,38 +313,91 @@
   "Trigger a signal through a node, assumes dependencies have been run.
    If node does not support signal then do nothing"
   [graph node-key signal-key graph-config]
-  (let [{:keys [deps-from to-state node props processor]}
-        (validate-signal graph node-key signal-key graph-config)
+  (let [
+        signal-config (-> graph-config :signals signal-key)
+        {:keys [deps-from to-state]} signal-config
+        node (get graph node-key)
+        node-state (:gx/state node)
+        signal-def (get node signal-key)
+        {:gx/keys [props processor resolved-props props-fn]} signal-def
+        ;; _ (validate-signal graph node-key signal-key graph-config)
+        ;;
         ;; :deps-from is ignored if component have :props
         props (if (and (not props) deps-from)
-                (-> node deps-from :props)
+                (-> node deps-from :gx/props)
                 props)
         ;; TODO: add props validation using malli schema
-        dep-nodes (select-keys graph (keys props))
-        props-falures (->> dep-nodes
-                           (system-failure)
-                           (filter :gx/failure))]
+        dep-nodes (system-value (select-keys graph (:gx/deps signal-def)))]
+        ;; props-falures (->> dep-nodes
+        ;;                    (system-failure)
+        ;;                    (filter :gx/failure))]
+        ;;
+    (println node-key)
+    (def node node)
+    (def node-state node-state)
+    (def props props)
+    (def dep-nodes dep-nodes)
+    (def dep-nodes dep-nodes)
     (cond
-      (seq props-falures)
-      (assoc node :gx/failure {:deps-failures props-falures})
+          ;; (seq props-falures)
+          ;; (assoc node :gx/failure {:deps-failures props-falures})
 
-      (ifn? processor)
-      (let [[error data] (run-processor
-                          processor {:props (system-value dep-nodes)
-                                     :value (:gx/value node)})]
-        (if error
-          (assoc node :gx/failure error)
-          (-> node
-              (assoc :gx/value data)
-              (assoc :gx/state to-state))))
+          (ifn? processor)
+          (let [props-result (postwalk-evaluate dep-nodes (:gx/resolved-props signal-def))
 
-      :else (assoc node :gx/state to-state))))
+                [error data] (run-processor
+                              processor {:props props-result
+                                         :value (:gx/value node)})]
+            (if error
+              (assoc node :gx/failure error)
+              (-> node
+                  (assoc :gx/value data)
+                  (assoc :gx/state to-state)))))))
+
 
 (defn signal [graph signal-key graph-config]
-  (let [sorted (topo-sort graph signal-key graph-config)]
+  (let [normalised-graph (normalize-graph graph-config graph)
+        sorted (topo-sort normalised-graph signal-key graph-config)]
+    (def sorted sorted)
     (reduce
      (fn [graph node-key]
        (let [node (node-signal graph node-key signal-key graph-config)]
          (assoc graph node-key node)))
-     graph
+     normalised-graph
      sorted)))
+
+
+(comment
+  (def my-component
+    {:gx/start {:gx/processor (fn [{:keys [props]}]
+                                (println "starting" (:w props))
+                                :d-started)
+                :gx/props-schema [:map
+                                  [:w int?]
+                                  [:port int?]]}})
+  (def g
+    {:a 2
+     :b '(inc (gx/ref :a))})
+     ;; :c {:gx/start '(inc (gx/ref :b))
+     ;;     :gx/stop '(println "stopping")}
+     ;; :d {:gx/start {:gx/processor (fn [{:keys [props]}]
+     ;;                                (println "starting")
+     ;;                                :d-started)
+     ;;                :gx/props {:x '(gx/ref :c)}}}
+
+     ;; :conf {:port 345}
+
+     ;; :e {:gx/component my-component
+     ;;     :gx/props {:port 3
+     ;;                :w '(get (gx/ref :conf) :a)}}})
+
+  (normalize-graph default-graph-config g)
+
+  (signal g :gx/start default-graph-config)
+
+  (def normalised
+    (normalize-graph default-graph-config g))
+
+  (signal g :gx/start default-graph-config)
+
+  (:c normalised))
