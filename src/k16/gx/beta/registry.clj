@@ -11,6 +11,11 @@
                   (namespace s))
               (name s)))))
 
+;; TODO explore if normalisation can be used to simplify. Can we simply call
+;; (normalize-node-def body)... or something like that. Is there anything we
+;; can use from this file and feed into normalisation step? is it possible
+;; to (def graph (normalize-graph  <some big graph>))  and have that work in
+;; cljs?
 (defmacro defcomponent
   "Define new component and register (cljs only, expands to plain def on jvm)"
   [cname & body]
