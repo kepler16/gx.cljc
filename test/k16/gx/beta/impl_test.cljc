@@ -3,6 +3,11 @@
             [k16.gx.beta.impl :as impl]))
 
 (deftest deep-merge-test
+  (testing "it should ignore nil in merge pairs"
+    (is (= (impl/deep-merge #:gx{:start {:nested-a 1}} nil)
+           #:gx{:start {:nested-a 1}}))
+    (is (= (impl/deep-merge nil #:gx{:start {:nested-a 1}})
+           #:gx{:start {:nested-a 1}})))
   (testing "it should deep merge signal maps into one"
     (is (= (impl/deep-merge
             ;; signal from component
@@ -16,7 +21,7 @@
             ;; signal from config
             #:gx{:start #:gx{:props {:config {:nested-a '(gx/ref :z)}}}})
            ;; resulting signal
-           #:gx{:start #:gx{:props {:config [:nested-a '(gx/ref :z)]},
+           #:gx{:start #:gx{:props {:config {:nested-a '(gx/ref :z)}},
                             :props-schema
                             [:map
                              [:config
