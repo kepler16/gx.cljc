@@ -1,12 +1,9 @@
 (ns k16.gx.beta.core
   (:require [clojure.walk :as walk]
             [k16.gx.beta.impl :as impl]
-            [k16.gx.beta.schema :as gxs]
             [promesa.core :as p]
             [malli.core :as m]
-            [malli.error :as me]
-            [k16.gx.beta.core :as gx]
-            [k16.gx.beta.system :as system]))
+            [malli.error :as me]))
 
 (defonce INITIAL_STATE :uninitialized)
 
@@ -39,7 +36,7 @@
        (and (seq? x) (= 'gx/ref (first x)))
        (get env (second x))
 
-       (and (seq? x) (fn? (first x)))
+       (and (seq? x) (ifn? (first x)))
        (apply (first x) (rest x))
 
        :else x))
@@ -123,35 +120,38 @@
 (defn normalize-node-def
   "Given a component definition, "
   [node-definition graph-config]
-  (let [;; set of signals defined in the graph
-        signals (set (keys (:signals graph-config)))
-        ;; is this map a map based def, or a runnable form
-        def? (and (map? node-definition)
-                  (some (into #{} (concat signals [:gx/component]))
-                        (keys node-definition)))
-        initial-signal (get-initial-signal graph-config)
-        with-pushed-down-form (if def?
-                                node-definition
-                                {initial-signal node-definition})
-        component (some-> with-pushed-down-form :gx/component resolve-symbol)
-        ;; merge in component
-        with-component (impl/deep-merge
-                        component (dissoc with-pushed-down-form :gx/component))
-        normalized-def (merge
-                        with-component
-                        {:gx/state INITIAL_STATE
-                         :gx/value nil})
-        signal-defs (select-keys normalized-def signals)
-        normalised-signal-defs
-        (->> signal-defs
-             (map (fn [[k v]]
-                    [k (normalize-signal-def graph-config v k)]))
-             (into {}))]
-    (merge normalized-def
-           normalised-signal-defs
+  (if (:gx/normalized? node-definition)
+    node-definition
+    (let [;; set of signals defined in the graph
+          signals (set (keys (:signals graph-config)))
+          ;; is this map a map based def, or a runnable form
+          def? (and (map? node-definition)
+                    (some (into #{} (concat signals [:gx/component]))
+                          (keys node-definition)))
+          initial-signal (get-initial-signal graph-config)
+          with-pushed-down-form (if def?
+                                  node-definition
+                                  {initial-signal node-definition})
+          component (some-> with-pushed-down-form :gx/component resolve-symbol)
+          ;; merge in component
+          with-component (impl/deep-merge
+                          component (dissoc with-pushed-down-form :gx/component))
+          normalized-def (merge
+                          with-component
+                          {:gx/state INITIAL_STATE
+                           :gx/value nil})
+          signal-defs (select-keys normalized-def signals)
+          normalised-signal-defs
+          (->> signal-defs
+               (map (fn [[k v]]
+                      [k (normalize-signal-def graph-config v k)]))
+               (into {}))]
+      (merge normalized-def
+             normalised-signal-defs
            ;; Useful information, but lets consider semantics before
            ;; using the value to determine behaviour
-           {:gx/type (if def? :component :static)})))
+             {:gx/type (if def? :component :static)
+              :gx/normalized? true}))))
 
 ;; TODO: write check for signal conflicts
 ;; - any state should have only one signal to transition from it
@@ -159,7 +159,7 @@
   "Given a graph definition and config, return a normalised form. Idempotent.
    This acts as the static analysis step of the graph.
    Returns tuple of error explanation (if any) and normamized graph."
-  [graph-definition graph-config]
+  [graph-config graph-definition]
   (let []
         ;; graph-issues (gxs/validate-graph graph-definition)
         ;; config-issues (gxs/validate-graph-config graph-config)]
@@ -178,7 +178,7 @@
                 [k (into #{} deps)])))
        (into {})))
 
-(defn topo-sort [graph signal-key graph-config]
+(defn topo-sort [graph-config graph signal-key]
   (if-let [signal-config (get-in graph-config [:signals signal-key])]
     (let [deps-from (or (:deps-from signal-config)
                         signal-key)
@@ -227,7 +227,7 @@
       [e nil])))
 
 (defn validate-signal
-  [graph node-key signal-key graph-config]
+  [graph-config graph node-key signal-key]
   (let [{:keys [from-state to-state deps-from]}
         (-> graph-config :signals signal-key)
         node (get graph node-key)
@@ -245,12 +245,12 @@
 (defn node-signal
   "Trigger a signal through a node, assumes dependencies have been run.
    If node does not support signal then do nothing"
-  [graph node-key signal-key graph-config]
+  [graph-config graph node-key signal-key]
   (let [signal-config (-> graph-config :signals signal-key)
         {:keys [_deps-from to-state]} signal-config
         node (get graph node-key)
-        ;; node-state (:gx/state node)
         signal-def (get node signal-key)
+        ;; node-state (:gx/state node)
         {:gx/keys [processor resolved-props deps props-schema]} signal-def
         ;; _ (validate-signal graph node-key signal-key graph-config)
         ;;
@@ -263,13 +263,12 @@
         ;; props-falures (->> dep-nodes
         ;;                    (system-failure)
         ;;                    (filter :gx/failure))]
-        ;;
     (cond
           ;; (seq props-falures)
           ;; (assoc node :gx/failure {:deps-failures props-falures})
       ;; TODO Check that we are actually turning symbols into resolved functions
       ;; in the normalisation step
-      (fn? processor)
+      (ifn? processor)
       ;; either use resolved-props, or call props-fn and pass in (system-value graph deps), result
       ;; of props-fn, should be validated against props-schema
       (let [props-result (postwalk-evaluate dep-nodes resolved-props)
@@ -288,18 +287,17 @@
 
       :else node)))
 
-(defn signal [normalised-graph signal-key graph-config]
-  (let [normalised-graph (normalize-graph normalised-graph graph-config)
-        sorted (topo-sort normalised-graph signal-key graph-config)]
+(defn signal [graph-config graph signal-key]
+  (let [normalised-graph (normalize-graph graph-config graph)
+        sorted (topo-sort graph-config normalised-graph signal-key)]
     (p/loop [graph normalised-graph
              sorted sorted]
-      (if (not (seq sorted))
-        graph
-        #_:clj-kondo/ignore
+      (if (seq sorted)
         (p/let [node-key (first sorted)
-                node (node-signal graph node-key signal-key graph-config)
+                node (node-signal graph-config graph node-key signal-key)
                 next-graph (assoc graph node-key node)]
-          (p/recur next-graph (rest sorted)))))))
+          (p/recur next-graph (rest sorted)))
+        graph))))
 
 
 (comment
@@ -389,5 +387,4 @@
   (signal g :gx/start default-graph-config)
 
 
-  (:c normalised)
-  )
+  (:c normalised))
