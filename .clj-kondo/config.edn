@@ -1,0 +1,2 @@
+{:lint-as {k16.gx.beta.registry/defcomponent clojure.core/def
+           promesa.core/let clojure.core/let}}
