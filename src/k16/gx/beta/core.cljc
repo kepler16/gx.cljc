@@ -9,10 +9,10 @@
 
 (def default-graph-config
   {:signals {:gx/start {:order :topological
-                        :from-state #{:stopped INITIAL_STATE}
+                        :from-states #{:stopped INITIAL_STATE}
                         :to-state :started}
              :gx/stop {:order :reverse-topological
-                       :from-state #{:started}
+                       :from-states #{:started}
                        :to-state :stopped
                        :deps-from :gx/start}}})
 
@@ -113,7 +113,7 @@
   (->> graph-config
        :signals
        (filter (fn [[_ body]]
-                 ((:from-state body) INITIAL_STATE)))
+                 ((:from-states body) INITIAL_STATE)))
        (map first)
        first))
 
@@ -228,14 +228,14 @@
 
 (defn validate-signal
   [graph-config graph node-key signal-key]
-  (let [{:keys [from-state to-state deps-from]}
+  (let [{:keys [from-states to-state deps-from]}
         (-> graph-config :signals signal-key)
         node (get graph node-key)
         node-state (:gx/state node)
         {:keys [props processor]} (get node signal-key)]
-    (assert (get from-state node-state)
-            (str "Incompatible from-state '" node-state
-                 "', expected one of '" from-state "'"))
+    (assert (get from-states node-state)
+            (str "Incompatible from-states '" node-state
+                 "', expected one of '" from-states "'"))
     {:to-state to-state
      :deps-from deps-from
      :props props
@@ -247,7 +247,7 @@
    If node does not support signal then do nothing"
   [graph-config graph node-key signal-key]
   (let [signal-config (-> graph-config :signals signal-key)
-        {:keys [_deps-from to-state]} signal-config
+        {:keys [_deps-from from-states to-state]} signal-config
         node (get graph node-key)
         signal-def (get node signal-key)
         ;; node-state (:gx/state node)
