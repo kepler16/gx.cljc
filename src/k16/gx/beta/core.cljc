@@ -2,8 +2,11 @@
   (:require [clojure.walk :as walk]
             [k16.gx.beta.impl :as impl]
             [k16.gx.beta.schema :as gxs]
+            [promesa.core :as p]
             [malli.core :as m]
-            [malli.error :as me]))
+            [malli.error :as me]
+            [k16.gx.beta.core :as gx]
+            [k16.gx.beta.system :as system]))
 
 (defonce INITIAL_STATE :uninitialized)
 
@@ -157,11 +160,12 @@
    This acts as the static analysis step of the graph.
    Returns tuple of error explanation (if any) and normamized graph."
   [graph-definition graph-config]
-  (let [graph-issues (gxs/validate-graph graph-definition)
-        config-issues (gxs/validate-graph-config graph-config)]
+  (let []
+        ;; graph-issues (gxs/validate-graph graph-definition)
+        ;; config-issues (gxs/validate-graph-config graph-config)]
     (cond
-      graph-issues (throw (ex-info "Graph definition error", graph-issues))
-      config-issues (throw (ex-info "Graph config error" config-issues))
+      ;; graph-issues (throw (ex-info "Graph definition error", graph-issues))
+      ;; config-issues (throw (ex-info "Graph config error" config-issues))
       :else (->> graph-definition
                  (map (fn [[k v]]
                         [k (normalize-node-def v graph-config)]))
@@ -285,16 +289,42 @@
       :else node)))
 
 (defn signal [normalised-graph signal-key graph-config]
-  (let [;normalised-graph (normalize-graph graph-config graph)
+  (let [normalised-graph (normalize-graph normalised-graph graph-config)
         sorted (topo-sort normalised-graph signal-key graph-config)]
-    (reduce
-     (fn [graph node-key]
-       (let [node (node-signal graph node-key signal-key graph-config)]
-         (assoc graph node-key node)))
-     normalised-graph
-     sorted)))
+    (p/loop [graph normalised-graph
+             sorted sorted]
+      (if (not (seq sorted))
+        graph
+        #_:clj-kondo/ignore
+        (p/let [node-key (first sorted)
+                node (node-signal graph node-key signal-key graph-config)
+                next-graph (assoc graph node-key node)]
+          (p/recur next-graph (rest sorted)))))))
+
 
 (comment
+
+  (require '[k16.gx.beta.system :as system])
+
+  (system/register
+   :dev
+   (fn []
+     {:graph-config gx/default-graph-config
+      :graph
+      {:port '(inc 1234)
+       :portttt '(inc (gx/ref :port))
+       :pop '(+ (gx/ref :port) (gx/ref :portttt))
+       :x {:gx/start 4
+           :gx/stop {:gx/processor (fn [{:keys [value]}]
+                                     (println "stopping with value " value)
+                                     :x-stopped)}}}}))
+
+  (system/signal :dev :gx/start)
+
+  (system/signal :dev :gx/stop)
+
+
+
   (postwalk-evaluate {} {:nested-a 1})
   (do
     (def ?TestCoponentProps
