@@ -244,13 +244,18 @@
 
 (defn node-signal
   "Trigger a signal through a node, assumes dependencies have been run.
-   If node does not support signal then do nothing"
+   Subsequent signal calls is supported, but it should be handled in it's
+   implementation. For example, http server component checks that it
+   already started and does nothing to prevent port taken error or it
+   can restart itself by taking recalculated properties from deps.
+   Static nodes just recalculates its values.
+   If node does not support signal then do nothing."
   [graph-config graph node-key signal-key]
   (let [signal-config (-> graph-config :signals signal-key)
         {:keys [_deps-from from-states to-state]} signal-config
         node (get graph node-key)
+        node-state (:gx/state node)
         signal-def (get node signal-key)
-        ;; node-state (:gx/state node)
         {:gx/keys [processor resolved-props deps props-schema]} signal-def
         ;; _ (validate-signal graph node-key signal-key graph-config)
         ;;
@@ -264,6 +269,10 @@
         ;;                    (system-failure)
         ;;                    (filter :gx/failure))]
     (cond
+      ;; Non subsequent signal and node-state != from-states
+      ;; ignore signal, return node
+      (and (not (from-states node-state))
+           (not= node-state to-state)) node
           ;; (seq props-falures)
           ;; (assoc node :gx/failure {:deps-failures props-falures})
       ;; TODO Check that we are actually turning symbols into resolved functions
