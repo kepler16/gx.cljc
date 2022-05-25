@@ -73,19 +73,26 @@ There must be one (and only one) signal, which runs on `from-state = INITIAL_STA
  And `normalized` is looks like this:
  ```clojure
 #:user{:data
-       #:gx{:start
-            #:gx{:processor
-                 k16.gx.beta.core/normalize-signal-def/auto-signal-processor
+       ;; normalized node definition
+       #:gx{;; signal key
+            :start
+            #:gx{;; signal prosessing function
+                 :processor <...>/auto-signal-processor
+                 ;; signal dependencies
                  :deps #{}
+                 ;; how dependencies are resolved
                  :resolved-props {}}
+            ;; current node state
             :state :uninitialized
+            ;; crrent node value
             :value nil
+            ;; type of node
             :type :static
+            ;; normalizatin flag
             :normalized? true}
        :name
        #:gx{:start
-            #:gx{:processor
-                 k16.gx.beta.core/normalize-signal-def/auto-signal-processor
+            #:gx{:processor <...>/auto-signal-processor
                  :deps #{:user/data}
                  :resolved-props #:user{:data (gx/ref :user/data)}}
             :state :uninitialized
@@ -94,8 +101,7 @@ There must be one (and only one) signal, which runs on `from-state = INITIAL_STA
             :normalized? true}
        :lang
        #:gx{:start
-            #:gx{:processor
-                 k16.gx.beta.core/normalize-signal-def/auto-signal-processor
+            #:gx{:processor <...>/auto-signal-processor
                  :deps #{:user/data}
                  :resolved-props #:user{:data (gx/ref :user/data)}}
             :state :uninitialized
@@ -105,9 +111,9 @@ There must be one (and only one) signal, which runs on `from-state = INITIAL_STA
  ```
 Now every node is in normalized state. It has **startup** signal `:gx/start` but not `:gx/stop`. Its because we didn't define any signals on nodes. And node is without signal becomes `:gx/type = :static` with **startup** signal only.
 
-Next we need to send signal to our graph by calling `gx/signal`:
+Next we send signal to our graph by calling `gx/signal`:
 ```clojure
 (def started @(gx/signal graph-config fancy-graph :gx/start))
 ```
 
-to be continued...
+As you may noticed `gx/signal` returns new graph, yes they immutable but some nodes can have persistend mutable data such as running http server or db connection pool. Theese kind of nodes called **components**.
