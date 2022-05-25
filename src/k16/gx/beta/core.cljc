@@ -20,8 +20,10 @@
   [sym]
   (when (symbol? sym)
     #?(:cljs (impl/namespace-symbol sym)
-       :clj (var-get (requiring-resolve
-                      (impl/namespace-symbol sym))))))
+       :clj (some-> sym
+                    (impl/namespace-symbol)
+                    (requiring-resolve)
+                    (var-get)))))
 
 (defn postwalk-evaluate
   "A postwalk runtime signal processor evaluator, works most of the time.
