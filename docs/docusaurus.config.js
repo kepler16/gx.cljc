@@ -108,6 +108,7 @@ const config = {
         copyright: `Copyright © ${new Date().getFullYear()} Kepler 16 Ltd.`,
       },
       prism: {
+        additionalLanguages: ['clojure'],
         theme: lightCodeTheme,
         darkTheme: darkCodeTheme,
       },
