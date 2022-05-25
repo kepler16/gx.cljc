@@ -61,8 +61,8 @@ There must be one (and only one) signal, which runs on `from-state = INITIAL_STA
                :also-named "Red Angel"
                :spoken-language "Nagrakali"
                :side :chaos}
-   :user/name (get (gx/ref :user/data) :name)
-   :user/lang (get (gx/ref :user/data) :spoken-language)})
+   :user/name '(get (gx/ref :user/data) :name)
+   :user/lang '(get (gx/ref :user/data) :spoken-language)})
 ```
 
  Here we have static node `:user/data` and two dependend nodes `:user/name` and `:user/lang`. The next step is **normalization**:
@@ -111,9 +111,8 @@ There must be one (and only one) signal, which runs on `from-state = INITIAL_STA
  ```
 Now every node is in normalized state. It has **startup** signal `:fancy/start` but not `:fancy/stop`. Its because we didn't define any signals on nodes. And node is without signal becomes `:gx/type = :static` with **startup** signal only.
 
-Next we send signal to our graph by calling `gx/signal`:
+Next we send signal to our graph by calling `gx/signal`. Signals runs asynchronously (using [funcool/promesa]()):
 ```clojure
 (def started @(gx/signal graph-config fancy-graph :fancy/start))
 ```
-
-As you may noticed `gx/signal` returns new graph, yes they immutable but some nodes can have persistend mutable data such as running http server or db connection pool. Theese kind of nodes called **components**.
+`gx/signal` returns `promesa`'s promise and it which should be dereffed. Value in promise is a graph with new state after signal, yes they immutable but some nodes can have mutable data such as running http server or db connection pool. Theese kind of nodes called **components**.
