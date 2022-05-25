@@ -8,7 +8,7 @@
   [:map
    [:order [:enum :topological :reverse-topological]]
    [:deps {:optional true} [:sequential keyword?]]
-   [:from-state [:set keyword?]]
+   [:from-states [:set keyword?]]
    [:to-state keyword?]
    [:deps-from {:optional true} keyword?]])
 

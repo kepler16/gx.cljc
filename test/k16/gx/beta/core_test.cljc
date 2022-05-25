@@ -42,10 +42,10 @@
 
 (def graph-config
   {:signals {:gx/start {:order :topological
-                        :from-state #{:stopped gx/INITIAL_STATE}
+                        :from-states #{:stopped gx/INITIAL_STATE}
                         :to-state :started}
              :gx/stop {:order :reverse-topological
-                       :from-state #{:started}
+                       :from-states #{:started}
                        :to-state :stopped
                        :deps-from :gx/start}}})
 
@@ -108,10 +108,10 @@
 (deftest failed-normalization-test
   (let [custom-graph-config {:signals
                              {:custom/start {:order :topological
-                                             :from-state #{:stopped :uninitialized}
+                                             :from-states #{:stopped :uninitialized}
                                              :to-state :started}
                               :custom/stop {:order :reverse-topological
-                                            :from-state #{:started}
+                                            :from-states #{:started}
                                             :to-state :stopped
                                             :deps-from :gx/start}}}
         config {:a {:nested-a 1}
