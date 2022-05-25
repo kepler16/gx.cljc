@@ -10,3 +10,4 @@
 /out/
 /.shadow-cljs/
 /.log/
+.tool-versions
