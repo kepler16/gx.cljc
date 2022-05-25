@@ -98,6 +98,9 @@
                                      (map (fn [dep]
                                             [dep (list 'gx/ref dep)]))
                                      (into {}))}))
+        resolved-props-fn (some-> with-pushed-down-form
+                                  :gx/props-fn
+                                  (resolve-symbol))
         with-resolved-props
         (if (:gx/resolved-props with-pushed-down-form)
           with-pushed-down-form
@@ -105,6 +108,7 @@
                                     (:gx/props with-pushed-down-form))]
             (merge with-pushed-down-form
                    {:gx/resolved-props form
+                    :gx/resolved-props-fn resolved-props-fn
                     :gx/deps env})))]
     with-resolved-props))
 
@@ -256,7 +260,8 @@
         node (get graph node-key)
         node-state (:gx/state node)
         signal-def (get node signal-key)
-        {:gx/keys [processor resolved-props deps props-schema]} signal-def
+        {:gx/keys [processor resolved-props
+                   resolved-props-fn deps props-schema]} signal-def
         ;; _ (validate-signal graph node-key signal-key graph-config)
         ;;
         ;; :deps-from is ignored if component have :props
@@ -280,7 +285,9 @@
       (ifn? processor)
       ;; either use resolved-props, or call props-fn and pass in (system-value graph deps), result
       ;; of props-fn, should be validated against props-schema
-      (let [props-result (postwalk-evaluate dep-nodes resolved-props)
+      (let [props-result (if (fn? resolved-props-fn)
+                           (resolved-props-fn dep-nodes)
+                           (postwalk-evaluate dep-nodes resolved-props))
             [error data] (if-let [e (validate-props props-schema props-result)]
                            [{:props-value props-result
                              :malli-schema props-schema

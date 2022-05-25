@@ -1,6 +1,6 @@
 (ns k16.gx.beta.registry)
 
-(defonce component-registry* (atom {}))
+(declare entity-registry*)
 
 (defn qualify-sym [nsp s]
   (when nsp
@@ -16,12 +16,21 @@
 ;; can use from this file and feed into normalisation step? is it possible
 ;; to (def graph (normalize-graph  <some big graph>))  and have that work in
 ;; cljs?
-(defmacro defcomponent
+(defmacro def-component
   "Define new component and register (cljs only, expands to plain def on jvm)"
   [cname & body]
   (if (:ns &env)
     (let [qualified-symbol# (qualify-sym (:ns &env) cname)]
       `(list
         (def ~cname ~@body)
-        (swap! component-registry* assoc '~qualified-symbol# ~cname)))
+        (swap! entity-registry* assoc '~qualified-symbol# ~cname)))
     `(def ~cname ~@body)))
+
+(defmacro def-props-fn
+  [cname & body]
+  (if (:ns &env)
+    (let [qualified-symbol# (qualify-sym (:ns &env) cname)]
+      `(list
+        (defn ~cname ~@body)
+        (swap! entity-registry* assoc '~qualified-symbol# ~cname)))
+    `(defn ~cname ~@body)))
