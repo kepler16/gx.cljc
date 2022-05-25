@@ -1,7 +1,8 @@
 (ns k16.gx.beta.core-test
   (:require [clojure.edn :as edn]
             [k16.gx.beta.core :as gx]
-            [k16.gx.beta.registry :refer [defcomponent]]
+            [k16.gx.beta.registry :refer [def-component def-props-fn]]
+            [k16.gx.beta.registry :as reg]
             [k16.gx.beta.schema :as gxs]
             [malli.core :as m]
             [malli.error :as me]
@@ -14,7 +15,7 @@
   [:map [:a [:map [:nested-a pos-int?]]]])
 
 ;; this component is linked in fixtures/graphs.edn
-(defcomponent test-component
+(def-component test-component
   {:gx/start {:gx/props-schema TestCoponentProps
               :gx/props {:a '(gx/ref :a)}
               :gx/processor
@@ -25,7 +26,7 @@
    :gx/stop {:gx/processor (fn [{:keys [_props value]}]
                              nil)}})
 
-(defcomponent test-component-2
+(def-component test-component-2
   {:gx/start {:gx/props-schema TestCoponentProps
               :gx/props {:a '(gx/ref :a)}
               :gx/processor
@@ -172,4 +173,32 @@
          #?(:clj Exception :cljs js/Error)
          #"(\"There's a circular dependency between :a -> :b -> :a\")"
          (gx/signal graph-config norm :gx/start)))))
+
+(def-props-fn my-props-fn
+  [{:keys [a]}]
+  (assoc a :full-name
+         (str (:name a) " " (:last-name a))))
+
+(def-component my-new-component
+  {:gx/start {:gx/props '(gx/ref :a)
+              :gx/processor
+              (fn my-new-component-handler
+                [{:keys [props]}]
+                (atom props))}})
+
+(deftest props-fn-test
+  (let [run-checks
+        (fn [started]
+          (is (= @(:comp (gx/system-value started))
+                 {:name "John" :last-name "Doe" :full-name "John Doe"})))
+        graph {:a {:name "John"
+                   :last-name "Doe"}
+               :comp
+               {:gx/component 'k16.gx.beta.core-test/my-new-component
+                :gx/start {:gx/props-fn 'k16.gx.beta.core-test/my-props-fn}}}
+        started (gx/signal graph-config graph :gx/start)]
+    #?(:clj (run-checks @started)
+       :cljs (t/async
+              done
+              (p/then started #((run-checks %) (done)))))))
 

@@ -98,7 +98,7 @@
   namespace otherwise."
   [sym]
   (if (namespace sym)
-    #?(:clj sym :cljs (get @reg/component-registry* sym))
+    #?(:clj sym :cljs (get @reg/entity-registry* sym))
     #?(:clj (symbol "clojure.core" (name sym))
        :cljs ((ns-publics 'cljs.core) sym))))
 
