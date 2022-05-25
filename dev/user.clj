@@ -7,11 +7,12 @@
   [_]
   (t/run-all-tests #"k16.*-test"))
 
-(system/register
- :dev
- (fn []
-   {:graph-config gx/default-graph-config
-    :graph
-    {:port '(inc 1234)
-     :portttt '(inc (gx/ref :port))
-     :pop '(+ (gx/ref :port) (gx/ref :portttt))}}))
+(comment
+ (system/register
+  :dev
+  (fn []
+    {:graph-config gx/default-graph-config
+     :graph
+     {:port '(inc 1234)
+      :portttt '(inc (gx/ref :port))
+      :pop '(+ (gx/ref :port) (gx/ref :portttt))}})))
