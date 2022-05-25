@@ -23,7 +23,7 @@
                   (atom
                    (assoc a :nested-a-x2 (* 2 (:nested-a a))))))}
    :gx/stop {:gx/processor (fn [{:keys [_props value]}]
-                          nil)}})
+                             nil)}})
 
 (defcomponent test-component-2
   {:gx/start {:gx/props-schema TestCoponentProps
@@ -34,7 +34,7 @@
                   (atom
                    (assoc a :some-value (+ 2 (:nested-a a))))))}
    :gx/stop {:gx/processor (fn [{:keys [_props value]}]
-                          nil)}})
+                             nil)}})
 
 (defn load-config []
   (let [path "test/fixtures/graphs.edn"]
