@@ -74,46 +74,46 @@ There must be one (and only one) signal, which runs on `from-state = INITIAL_STA
  ```clojure
 #:user{:data
        ;; normalized node definition
-       #:gx{;; signal key
-            :start
-            #:gx{;; signal prosessing function
-                 :processor <...>/auto-signal-processor
-                 ;; signal dependencies
-                 :deps #{}
-                 ;; how dependencies are resolved
-                 :resolved-props {}}
-            ;; current node state
-            :state :uninitialized
-            ;; crrent node value
-            :value nil
-            ;; type of node
-            :type :static
-            ;; normalizatin flag
-            :normalized? true}
+       #:fancy{;; signal key
+               :start
+               #:gx{;; signal prosessing function
+                   :processor <...>/auto-signal-processor
+                   ;; signal dependencies
+                   :deps #{}
+                   ;; how dependencies are resolved
+                   :resolved-props {}}
+               ;; current node state
+               :state :uninitialized
+               ;; crrent node value
+               :value nil
+               ;; type of node
+               :type :static
+               ;; normalizatin flag
+               :normalized? true}
        :name
-       #:gx{:start
-            #:gx{:processor <...>/auto-signal-processor
-                 :deps #{:user/data}
-                 :resolved-props #:user{:data (gx/ref :user/data)}}
-            :state :uninitialized
-            :value nil
-            :type :static
-            :normalized? true}
+       #:fancy{:start
+               #:gx{:processor <...>/auto-signal-processor
+                    :deps #{:user/data}
+                    :resolved-props #:user{:data (gx/ref :user/data)}}
+               :state :uninitialized
+               :value nil
+               :type :static
+               :normalized? true}
        :lang
-       #:gx{:start
-            #:gx{:processor <...>/auto-signal-processor
-                 :deps #{:user/data}
-                 :resolved-props #:user{:data (gx/ref :user/data)}}
-            :state :uninitialized
-            :value nil
-            :type :static
-            :normalized? true}}
+       #:fancy{:start
+               #:gx{:processor <...>/auto-signal-processor
+                    :deps #{:user/data}
+                    :resolved-props #:user{:data (gx/ref :user/data)}}
+               :state :uninitialized
+               :value nil
+               :type :static
+               :normalized? true}}
  ```
-Now every node is in normalized state. It has **startup** signal `:gx/start` but not `:gx/stop`. Its because we didn't define any signals on nodes. And node is without signal becomes `:gx/type = :static` with **startup** signal only.
+Now every node is in normalized state. It has **startup** signal `:fancy/start` but not `:fancy/stop`. Its because we didn't define any signals on nodes. And node is without signal becomes `:gx/type = :static` with **startup** signal only.
 
 Next we send signal to our graph by calling `gx/signal`:
 ```clojure
-(def started @(gx/signal graph-config fancy-graph :gx/start))
+(def started @(gx/signal graph-config fancy-graph :fancy/start))
 ```
 
 As you may noticed `gx/signal` returns new graph, yes they immutable but some nodes can have persistend mutable data such as running http server or db connection pool. Theese kind of nodes called **components**.
