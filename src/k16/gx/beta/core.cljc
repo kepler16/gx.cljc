@@ -155,7 +155,6 @@
              {:gx/type (if def? :component :static)
               :gx/normalized? true}))))
 
-;; TODO: write check for signal conflicts
 ;; - any state should have only one signal to transition from it
 (defn normalize-graph
   "Given a graph definition and config, return a normalised form. Idempotent.
@@ -186,7 +185,6 @@
                         signal-key)
           graph-deps (graph-dependencies graph deps-from)
           sorted-raw (impl/sccs graph-deps)]
-    ;; handle dependency errors
       (when-let [errors (->> sorted-raw
                              (impl/dependency-errors graph-deps)
                              (map impl/human-render-dependency-error)
