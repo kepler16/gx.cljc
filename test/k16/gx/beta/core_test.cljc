@@ -150,3 +150,16 @@
                       stopped (gx/signal graph-config started :gx/stop)]
                 (run-checks started stopped)
                 (done))))))
+
+(deftest subsequent-normalizations-test
+  (let [norm-1 (gx/normalize-graph graph-config (load-config))
+        norm-2 (gx/normalize-graph graph-config norm-1)
+        norm-3 (gx/normalize-graph graph-config norm-2)]
+    (testing "normalization should add :gx/normalized? flag"
+      (is (= #{true} (set (map :gx/normalized? (vals norm-1))))))
+    (testing "all graphs should be equal"
+      (is (= norm-1 norm-2 norm-3)))
+    (testing "should normalize and flag new node in graph "
+      (let [new-graph (assoc norm-3 :new-node '(* 4 (gx/ref :z)))
+            new-norm (gx/normalize-graph graph-config new-graph)]
+        (is (:gx/normalized? (:new-node new-norm)))))))
