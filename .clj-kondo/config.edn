@@ -1,3 +1,5 @@
 {:lint-as {k16.gx.beta.registry/defcomponent clojure.core/def
            promesa.core/let clojure.core/let
-           promesa.core/loop clojure.core/let}}
+           promesa.core/loop clojure.core/let
+           k16.gx.beta.registry/def-component clojure.core/def
+           k16.gx.beta.registry/def-props-fn clojure.core/defn}}
