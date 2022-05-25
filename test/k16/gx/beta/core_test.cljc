@@ -163,3 +163,13 @@
       (let [new-graph (assoc norm-3 :new-node '(* 4 (gx/ref :z)))
             new-norm (gx/normalize-graph graph-config new-graph)]
         (is (:gx/normalized? (:new-node new-norm)))))))
+
+(deftest cyclic-dependency-test
+  (let [graph {:a '(gx/ref :b)
+               :b '(gx/ref :a)}
+        norm (gx/normalize-graph graph-config graph)]
+    (is (thrown-with-msg?
+         #?(:clj Exception :cljs js/Error)
+         #"(\"There's a circular dependency between :a -> :b -> :a\")"
+         (gx/signal graph-config norm :gx/start)))))
+

@@ -174,7 +174,7 @@
 (defn graph-dependencies [graph signal-key]
   (->> graph
        (map (fn [[k node]]
-              (let [deps (-> node signal-key :deps)]
+              (let [deps (-> node signal-key :gx/deps)]
                 [k (into #{} deps)])))
        (into {})))
 
