@@ -4,36 +4,4 @@
               :to-state :started}
   :app/stop {:order :reverse-topological
              :from-states #{:started}
-             :to-state :stopped}}
- #_{:app/init-static {:from-states #{gx/INITIAL_STATE}
-                      :node-type :gx/static
-                      :to-state :initialized}
-
-  ;; :app/start-component {:from-states #{gx/INITIAL_STATE}
-  ;;                       :node-type :gx/component
-  ;;                       :to-state :started}
-
-  :db/create {:from-states #{:db/dropped}
-              :node-type :gx/component
-              :to-state :db/empty}
-
-  :db/populate {:from-states #{:db/empty}
-                :node-type :gx/component
-                :deps-from :db/create}
-
-  :db/drop {:from-states #{:db/created}
-            :node-type :gx/component
-            :to-state :db/empty}
-
-  :http-server/start {:from-states #{:http-server/stopped gx/INITIAL_STATE}
-                      :node-type :gx/component
-                      :to-state :http-server/started}
-
-  :http-server/stop {:from-states #{:started}
-                     :node-type :gx/component
-                     :to-state :stopped}
-
-  :http-server/restart {:from-states #{:started}
-                        :node-type :gx/component
-                        :to-state :started
-                        :deps-from :http-server/start}}}
+             :to-state :stopped}}}
