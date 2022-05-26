@@ -38,6 +38,15 @@
        (and (seq? x) (= 'gx/ref (first x)))
        (get env (second x))
 
+       (and (seq? x) (= 'gx/ref-map (first x)))
+       {(second x) (get env (second x))}
+
+       (and (seq? x) (= 'gx/ref-maps (first x)))
+       (select-keys env (rest x))
+
+       (and (seq? x) (= 'gx/ref-in (first x)))
+       (get-in env [(second x) (nth x 2)])
+
        (and (seq? x) (ifn? (first x)))
        (apply (first x) (rest x))
 
