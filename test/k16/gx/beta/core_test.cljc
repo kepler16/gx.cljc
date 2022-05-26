@@ -1,8 +1,7 @@
 (ns k16.gx.beta.core-test
   (:require [clojure.edn :as edn]
             [k16.gx.beta.core :as gx]
-            [k16.gx.beta.registry :refer [def-component def-props-fn]]
-            [k16.gx.beta.registry :as reg]
+            [k16.gx.beta.registry :refer [defcomp defun]]
             [k16.gx.beta.schema :as gxs]
             [malli.core :as m]
             [malli.error :as me]
@@ -15,7 +14,7 @@
   [:map [:a [:map [:nested-a pos-int?]]]])
 
 ;; this component is linked in fixtures/graphs.edn
-(def-component test-component
+(defcomp test-component
   {:gx/start {:gx/props-schema TestCoponentProps
               :gx/props {:a '(gx/ref :a)}
               :gx/processor
@@ -26,7 +25,7 @@
    :gx/stop {:gx/processor (fn [{:keys [_props value]}]
                              nil)}})
 
-(def-component test-component-2
+(defcomp test-component-2
   {:gx/start {:gx/props-schema TestCoponentProps
               :gx/props {:a '(gx/ref :a)}
               :gx/processor
@@ -174,12 +173,12 @@
          #"(\"There's a circular dependency between :a -> :b -> :a\")"
          (gx/signal graph-config norm :gx/start)))))
 
-(def-props-fn my-props-fn
+(defun my-props-fn
   [{:keys [a]}]
   (assoc a :full-name
          (str (:name a) " " (:last-name a))))
 
-(def-component my-new-component
+(defcomp my-new-component
   {:gx/start {:gx/props '(gx/ref :a)
               :gx/processor
               (fn my-new-component-handler
