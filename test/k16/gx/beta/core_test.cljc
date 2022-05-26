@@ -202,3 +202,17 @@
               done
               (p/then started #((run-checks %) (done)))))))
 
+(deftest postwalk-evaluate-test
+  (let [env {:http/server {:port 8080}
+             :db/url "jdbc://foo/bar/baz"}]
+
+    (t/are [arg result] (= result (gx/postwalk-evaluate env arg))
+      '(gx/ref :http/server) {:port 8080}
+
+      '(gx/ref-map :http/server) #:http{:server {:port 8080}}
+
+      '(gx/ref-in :http/server :port) 8080
+
+      '(gx/ref-maps :http/server :db/url) {:http/server {:port 8080}
+                                           :db/url "jdbc://foo/bar/baz"})))
+
