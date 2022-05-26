@@ -27,20 +27,20 @@ To start using GX you need two things:
 - Graph itself - contains nodes of our state machine
 ### Graph Configuration
 
-**Config** is a simple map with **signals**. Here we define two signals `:fancy/start` and `:fancy/stop`:
+**Config** is a simple map with **signals**. Here we define two signals `:my/start` and `:my/stop`:
 
 ```clojure
 (ns user
  (:require [k16.gx.beta.core :as gx]))
 
 (def graph-config
-  {:signals {:fancy/start {:order :topological
-                           :from-states #{:stopped gx/INITIAL_STATE}
-                           :to-state :started}
-             :fancy/stop {:order :reverse-topological
-                          :from-states #{:started}
-                          :to-state :stopped
-                          :deps-from :gx/start}}})
+  {:signals {:my/start {:order :topological
+                        :from-states #{:stopped gx/INITIAL_STATE}
+                        :to-state :started}
+             :my/stop {:order :reverse-topological
+                       :from-states #{:started}
+                       :to-state :stopped
+                       :deps-from :gx/start}}})
 ```
 
 Every signal is a map with following keys:
@@ -50,7 +50,7 @@ Every signal is a map with following keys:
 - `:to-state` the state of node after signal successifully handled
 - `:deps-from` this field is used if signal's dependencies should be copied from another signal
 
-There must be one (and only one) signal, which runs on `from-state = INITIAL_STATE`. It is called **startup signal**. In our case its `:fancy/start`.
+There must be one (and only one) signal, which runs on `from-state = INITIAL_STATE`. It is called **startup signal**. In our case its `:my/start`.
 
 ## Graph
 
@@ -76,7 +76,7 @@ There must be one (and only one) signal, which runs on `from-state = INITIAL_STA
  ```clojure
 #:user{:data
        ;; startup signal definition
-       {:fancy/start
+       {:my/start
         #:gx{;; signal processor
              :processor <...>/auto-signal-processor,
              ;; signal dependencies
@@ -93,7 +93,7 @@ There must be one (and only one) signal, which runs on `from-state = INITIAL_STA
         ;; normalization flag
         :gx/normalized? true},
        :name
-       {:fancy/start
+       {:my/start
         #:gx{:processor <...>/auto-signal-processor,
              :deps #{:user/data},
              :resolved-props #:user{:data (gx/ref :user/data)}},
@@ -102,7 +102,7 @@ There must be one (and only one) signal, which runs on `from-state = INITIAL_STA
         :gx/type :static,
         :gx/normalized? true},
        :lang
-       {:fancy/start
+       {:my/start
         #:gx{:processor <...>/auto-signal-processor,
              :deps #{:user/data},
              :resolved-props #:user{:data (gx/ref :user/data)}},
@@ -111,11 +111,11 @@ There must be one (and only one) signal, which runs on `from-state = INITIAL_STA
         :gx/type :static,
         :gx/normalized? true}}
  ```
-Now every node is in normalized state. It has **startup** signal `:fancy/start` but not `:fancy/stop`, because we didn't define any signals on nodes. And node without signals becomes `:gx/type = :static` with **startup** signal only.
+Now every node is in normalized state. It has **startup** signal `:my/start` but not `:my/stop`, because we didn't define any signals on nodes. And node without signals becomes `:gx/type = :static` with **startup** signal only.
 
 Next we send signal to our graph by calling `gx/signal`. Signals runs asynchronously (using [funcool/promesa](https://github.com/funcool/promesa)):
 ```clojure
-(def started @(gx/signal graph-config fancy-graph :fancy/start))
+(def started @(gx/signal graph-config fancy-graph :my/start))
 ```
 Value in `started` variable is a normalized graph structure with new state. GX itself does not store graphs, it simply returns new graphs on every signal. Managing graph store should happen on application side.
 
@@ -134,21 +134,22 @@ Here is some utility functions to view internals of graph:
 ;; => #:user{:data :started, :name :started, :lang :started}
 
 ;; this function shows sequence of given signal flow
-(gx/topo-sort graph-config started :fancy/start)
+(gx/topo-sort graph-config started :my/start)
 ;; => (:user/data :user/name :user/lang)
 
-;; :fancy/stop is configured with :reverse-topological order
+;; :my/stop is configured with :reverse-topological order
 ;; stop dependend graph leafs first, then move upwards
-(gx/topo-sort graph-config started :fancy/stop)
+(gx/topo-sort graph-config started :my/stop)
 ;; => (:user/lang :user/name :user/data)
 
 ;; shows dependencies of graph nodes for given signal
-(gx/graph-dependencies started :fancy/start)
+(gx/graph-dependencies started :my/start)
 ;; => #:user{:data #{}, :name #{:user/data}, :lang #{:user/data}}
 
-;; :fancy/stop have no dependencies, all nodes does not handle this signal
-(gx/graph-dependencies started :fancy/stop)
+;; :my/stop have no dependencies, all nodes does not handle this signal
+(gx/graph-dependencies started :my/stop)
 ;; => #:user{:data #{}, :name #{}, :lang #{}}
 ```
 
+Tutorial contains more practical example.
 
