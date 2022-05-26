@@ -210,7 +210,7 @@
 
       '(gx/ref-map :http/server) #:http{:server {:port 8080}}
 
-      '(gx/ref-in :http/server :port) 8080
+      '(gx/ref-path :http/server :port) 8080
 
       '(gx/ref-maps :http/server :db/url) {:http/server {:port 8080}
                                            :db/url "jdbc://foo/bar/baz"})))

@@ -5,6 +5,13 @@
             [malli.core :as m]
             [malli.error :as me]))
 
+(def locals #{'gx/ref 'gx/ref-maps 'gx/ref-map 'gx/ref-path})
+
+(defn local-form?
+  [form]
+  (and (seq? form)
+       (locals (first form))))
+
 (defonce INITIAL_STATE :uninitialized)
 
 (def default-graph-config
@@ -25,6 +32,21 @@
                     (requiring-resolve)
                     (var-get)))))
 
+(defn parse-local
+  [env form]
+  (cond
+    (= 'gx/ref (first form))
+    (get env (second form))
+
+    (= 'gx/ref-map (first form))
+    {(second form) (get env (second form))}
+
+    (= 'gx/ref-maps (first form))
+    (select-keys env (rest form))
+
+    (= 'gx/ref-path (first form))
+    (get-in env [(second form) (nth form 2)])))
+
 (defn postwalk-evaluate
   "A postwalk runtime signal processor evaluator, works most of the time.
   Doesn't support special symbols and macros, basically just function application.
@@ -35,17 +57,8 @@
   (walk/postwalk
    (fn [x]
      (cond
-       (and (seq? x) (= 'gx/ref (first x)))
-       (get env (second x))
-
-       (and (seq? x) (= 'gx/ref-map (first x)))
-       {(second x) (get env (second x))}
-
-       (and (seq? x) (= 'gx/ref-maps (first x)))
-       (select-keys env (rest x))
-
-       (and (seq? x) (= 'gx/ref-in (first x)))
-       (get-in env [(second x) (nth x 2)])
+       (local-form? x)
+       (parse-local env x)
 
        (and (seq? x) (ifn? (first x)))
        (apply (first x) (rest x))
@@ -66,7 +79,7 @@
              (walk/postwalk
               (fn [sub-form]
                 (cond
-                  (= 'gx/ref sub-form) sub-form
+                  (locals sub-form) sub-form
 
                   (special-symbol? sub-form)
                   (throw-parse-error "Special forms are not supported"
@@ -80,8 +93,8 @@
                                      form
                                      sub-form)
 
-                  (and (seq? sub-form) (= 'gx/ref (first sub-form)))
-                  (do (swap! props* conj (second sub-form))
+                  (local-form? sub-form)
+                  (do (swap! props* concat (rest sub-form))
                       sub-form)
 
                   :else sub-form))))]
