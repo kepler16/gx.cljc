@@ -17,7 +17,8 @@
 ;; to (def graph (normalize-graph  <some big graph>))  and have that work in
 ;; cljs?
 (defmacro def-component
-  "Define new component and register (cljs only, expands to plain def on jvm)"
+  "Define new component and register to entity-registry
+   (cljs only, expands to plain def on jvm)"
   [cname & body]
   (if (:ns &env)
     (let [qualified-symbol# (qualify-sym (:ns &env) cname)]
@@ -27,6 +28,8 @@
     `(def ~cname ~@body)))
 
 (defmacro def-props-fn
+  "Define new function and register in entity-registry
+   (cljs only, expands to plain defn on jvm)"
   [cname & body]
   (if (:ns &env)
     (let [qualified-symbol# (qualify-sym (:ns &env) cname)]
