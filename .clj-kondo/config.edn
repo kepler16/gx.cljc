@@ -1,2 +1,1 @@
-{:lint-as {k16.gx.beta.registry/def-component clojure.core/def
-           k16.gx.beta.registry/def-props-fn clojure.core/defn}}
+{:lint-as {}}
