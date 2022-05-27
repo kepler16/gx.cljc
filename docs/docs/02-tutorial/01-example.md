@@ -197,5 +197,6 @@ Lets run app from terminal
 ```
 clj -M:main
 ```
-Open your browser: http://localhost:8080/users. Viola!
+Open your browser: http://localhost:8080/users. Viola! On the next step we will add database component.
+
 Full source code is available on [github](https://github.com/kepler16/gx.cljc/tree/gx-v2/example).
