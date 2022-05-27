@@ -5,14 +5,14 @@
             [malli.core :as m]
             [malli.error :as me]))
 
+(defonce INITIAL_STATE :uninitialized)
+
 (def locals #{'gx/ref 'gx/ref-maps 'gx/ref-map 'gx/ref-path})
 
 (defn local-form?
   [form]
   (and (seq? form)
        (locals (first form))))
-
-(defonce INITIAL_STATE :uninitialized)
 
 (def default-graph-config
   {:signals {:gx/start {:order :topological
@@ -336,93 +336,3 @@
                 next-graph (assoc graph node-key node)]
           (p/recur next-graph (rest sorted)))
         graph))))
-
-
-(comment
-
-  (require '[k16.gx.beta.system :as system])
-
-  (system/register
-   :dev
-   (fn []
-     {:graph-config gx/default-graph-config
-      :graph
-      {:port '(inc 1234)
-       :portttt '(inc (gx/ref :port))
-       :pop '(+ (gx/ref :port) (gx/ref :portttt))
-       :x {:gx/start 4
-           :gx/stop {:gx/processor (fn [{:keys [value]}]
-                                     (println "stopping with value " value)
-                                     :x-stopped)}}}}))
-
-  (system/signal :dev :gx/start)
-
-  (system/signal :dev :gx/stop)
-
-
-
-  (postwalk-evaluate {} {:nested-a 1})
-  (do
-    (def ?TestCoponentProps
-      [:map [:config [:map [:nested-a pos-int?]]]])
-
-    (def my-component
-      {:gx/start {:gx/props {:config '(gx/ref :c)}
-                  :gx/props-schema ?TestCoponentProps
-                  :gx/processor
-                  (fn [{:keys [props _value]}]
-                    (when-let [a (:config props)]
-                      (atom
-                       (assoc a :nested-a-x2 (* 2 (:nested-a a))))))}
-       :gx/stop {:gx/processor (fn [{:keys [_props value]}]
-                                 nil)}})
-
-    (def config {:c {:nested-a 1}
-                 :z '(+ 10 (get (gx/ref :c) :nested-a))
-                 :comp {:gx/start {:gx/props
-                                   {:config
-                                    {:nested-a '(gx/ref :z)}}}
-                        :gx/component 'k16.gx.beta.core/my-component}})
-    (def norm (normalize-graph config default-graph-config))
-    ;; norm
-    ;; (select-keys norm #{:c})
-    (def started (signal norm :gx/start default-graph-config))
-
-    (def stopped (signal started :gx/stop default-graph-config))
-    [;;  norm
-     started
-    ;;  stopped
-     ]
-    ;; nil
-    ;; started
-    )
-
-     ;; :c {:gx/start '(inc (gx/ref :b))
-     ;;     :gx/stop '(println "stopping")}
-     ;; :d {:gx/start {:gx/processor (fn [{:keys [props]}]
-     ;;                                (println "starting")
-     ;;                                :d-started)
-     ;;                :gx/props {:x '(gx/ref :c)}}}
-
-     ;; :conf {:port 345}
-
-     ;; :e {:gx/component my-component
-     ;;     :gx/props {:port 3
-     ;;                :w '(get (gx/ref :conf) :a)}}})
-
-  (normalize-graph default-graph-config g)
-
-
-  (signal g :gx/start default-graph-config)
-
-  (signal g :gx/stop default-graph-config)
-
-
-  (def normalised
-    (normalize-graph default-graph-config g))
-
-
-  (signal g :gx/start default-graph-config)
-
-
-  (:c normalised))
