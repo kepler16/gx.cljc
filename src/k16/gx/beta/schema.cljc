@@ -61,13 +61,3 @@
 
 (def ?NormalizedGraphDefinition
   [:map-of keyword? ?NodeDefinition])
-
-(comment
-  (let [c {:transit/start {:processor (fn [{:keys [props _value]}]
-                                        (let [a (:a props)]
-                                          (assoc a :nested-a-x2 (* 2 (:nested-a a)))))
-                           :props {:a [:map [:nesed-b pos-int?]]}}
-           :transit/stop {:processor (fn [{:keys [_props _value]}]
-                                       nil)}}]
-    (me/humanize
-     (m/explain ?ComponentDefinition c))))
