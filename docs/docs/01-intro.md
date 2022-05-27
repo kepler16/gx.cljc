@@ -9,6 +9,10 @@ slug: /
 
 GX is data driven directed acyclic graph state machine with configurable signals and nodes for Clojure(Scipt).
 
+## Status
+
+In preview, many things can be changed.
+
 ## Install
 
 Leiningen:
@@ -54,7 +58,7 @@ There must be one (and only one) signal, which runs on `from-state = INITIAL_STA
 
 ## Graph
 
-**Graph** is a plain clojure map with defined nodes on root level. Here we create graph of three nodes. Node value can be any data structure, primitive value, function call or gx reference `gx/ref`:
+**Graph** is a plain clojure map with defined nodes on root level. Here we create graph of three nodes. Node value can be any data structure, primitive value, function call or **gx reference** `gx/ref`:
 
 ```clojure
 (def fancy-graph
@@ -151,5 +155,5 @@ Here is some utility functions to view internals of graph:
 ;; => #:user{:data #{}, :name #{}, :lang #{}}
 ```
 
-Tutorial contains more practical example.
+[Tutorial](/example-app) contains more practical example.
 

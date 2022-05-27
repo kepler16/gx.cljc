@@ -1,4 +1,5 @@
 (ns k16.gx.beta.core
+  (:refer-clojure :exclude [ref])
   (:require [clojure.walk :as walk]
             [k16.gx.beta.impl :as impl]
             [promesa.core :as p]
@@ -31,6 +32,22 @@
                     (impl/namespace-symbol)
                     (requiring-resolve)
                     (var-get)))))
+
+(defn ref
+  [key]
+  (list 'gx/ref key))
+
+(defn ref-map
+  [key]
+  (list 'gx/ref-map key))
+
+(defn ref-maps
+  [& keys]
+  (apply list (conj keys 'gx/ref-maps)))
+
+(defn ref-path
+  [& keys]
+  (apply list (conj keys 'gx/ref-path)))
 
 (defn parse-local
   [env form]
@@ -188,6 +205,7 @@
    Returns tuple of error explanation (if any) and normamized graph."
   [graph-config graph-definition]
   (let []
+        ;; TODO failing
         ;; graph-issues (gxs/validate-graph graph-definition)
         ;; config-issues (gxs/validate-graph-config graph-config)]
     (cond
