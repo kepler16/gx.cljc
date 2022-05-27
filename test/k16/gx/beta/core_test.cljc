@@ -1,20 +1,18 @@
 (ns k16.gx.beta.core-test
-  (:require [clojure.edn :as edn]
-            [k16.gx.beta.core :as gx]
-            [k16.gx.beta.registry :refer [defcomp defun]]
+  (:require [k16.gx.beta.core :as gx]
+            [k16.gx.beta.registry :as gx.reg :include-macros true]
             [k16.gx.beta.schema :as gxs]
             [malli.core :as m]
             [malli.error :as me]
             #?(:clj [clojure.test :as t :refer [deftest is testing]])
             #?@(:cljs [[cljs.test :as t :refer-macros [deftest is testing]]
-                       [test-utils :refer [slurp]]
                        [promesa.core :as p]])))
 
 (def TestCoponentProps
   [:map [:a [:map [:nested-a pos-int?]]]])
 
 ;; this component is linked in fixtures/graphs.edn
-(defcomp test-component
+(def test-component
   {:gx/start {:gx/props-schema TestCoponentProps
               :gx/props {:a '(gx/ref :a)}
               :gx/processor
@@ -25,7 +23,7 @@
    :gx/stop {:gx/processor (fn [{:keys [_props value]}]
                              nil)}})
 
-(defcomp test-component-2
+(def test-component-2
   {:gx/start {:gx/props-schema TestCoponentProps
               :gx/props {:a '(gx/ref :a)}
               :gx/processor
@@ -37,8 +35,7 @@
                              nil)}})
 
 (defn load-config []
-  (let [path "test/fixtures/graphs.edn"]
-    (edn/read-string (slurp path))))
+  (gx.reg/load-graph! "test/fixtures/graphs.edn"))
 
 (def graph-config
   {:signals {:gx/start {:order :topological
@@ -173,12 +170,13 @@
          #"(\"There's a circular dependency between :a -> :b -> :a\")"
          (gx/signal graph-config norm :gx/start)))))
 
-(defun my-props-fn
+(defn my-props-fn
   [{:keys [a]}]
   (assoc a :full-name
          (str (:name a) " " (:last-name a))))
 
-(defcomp my-new-component
+
+(def my-new-component
   {:gx/start {:gx/props '(gx/ref :a)
               :gx/processor
               (fn my-new-component-handler
@@ -199,7 +197,11 @@
     #?(:clj (run-checks @started)
        :cljs (t/async
               done
-              (p/then started #((run-checks %) (done)))))))
+              (-> started
+                  (p/then (fn [s]
+                            (run-checks s)
+                            (done))))))))
+
 
 (deftest postwalk-evaluate-test
   (let [env {:http/server {:port 8080}
