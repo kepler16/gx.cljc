@@ -75,7 +75,7 @@ There must be one (and only one) signal, which runs on `from-state = INITIAL_STA
  ```clojure
  (def normalized (gx/normalize graph-config fancy-graph))
  ```
- This step is not mandatory since every signal call normalizes unnormalzed nodes.
+ This step is not mandatory since every signal call normalizes unnormalized nodes.
  A normalization is a process of converting your graph to state machine where each node becomes signal receiver:
  ```clojure
 #:user{:data
