@@ -6,7 +6,8 @@
             [malli.error :as me]
             #?(:clj [clojure.test :as t :refer [deftest is testing]])
             #?@(:cljs [[cljs.test :as t :refer-macros [deftest is testing]]
-                       [promesa.core :as p]])))
+                       [promesa.core :as p]
+                       [k16.gx.beta.impl :as impl]])))
 
 (def TestCoponentProps
   [:map [:a [:map [:nested-a pos-int?]]]])
@@ -175,7 +176,6 @@
   (assoc a :full-name
          (str (:name a) " " (:last-name a))))
 
-
 (def my-new-component
   {:gx/start {:gx/props '(gx/ref :a)
               :gx/processor
@@ -202,7 +202,6 @@
                             (run-checks s)
                             (done))))))))
 
-
 (deftest postwalk-evaluate-test
   (let [env {:http/server {:port 8080}
              :db/url "jdbc://foo/bar/baz"}]
@@ -217,3 +216,17 @@
       '(gx/ref-maps :http/server :db/url) {:http/server {:port 8080}
                                            :db/url "jdbc://foo/bar/baz"})))
 
+#?(:cljs
+   (deftest globaly-registered-components-test
+     (t/are [js-v v] (= v js-v)
+       (impl/sym->js-resolve 'k16.gx.beta.core-test/test-component)
+       test-component
+
+       (impl/sym->js-resolve 'k16.gx.beta.core-test/test-component-2)
+       test-component-2
+
+       (impl/sym->js-resolve 'k16.gx.beta.core-test/my-new-component)
+       my-new-component
+
+       (impl/sym->js-resolve 'k16.gx.beta.core-test/my-props-fn)
+       my-props-fn)))
