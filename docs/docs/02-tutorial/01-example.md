@@ -9,7 +9,7 @@ slug: /example-app
 
 You can't do much with static nodes. GX supports components, **component** is a dynamic node with custom signal handlers.
 
-We need graph and app configs. Lets define two signals for start and stop:
+We need graph and app configs. Let's define two signals for start and stop:
 
 ```clojure title="resources/graph.config.edn"
 {:signals
@@ -54,7 +54,7 @@ Our app is a simple web server with one route `/users`. You may notice new keywo
 | `gx/ref-maps` | gets list of nodes | `(gx/ref-map :a :b)` => `{:a {:foo 1} :b {:bar 1}}` |
 | `gx/ref-path` | get-in to node     | `(gx/ref-path :a :foo)` => `1`                           |
 
-Alright, lets write app code:
+Alright, let's write app code:
 
 ```clojure title="src/app.clj"
 (ns app
@@ -174,7 +174,7 @@ Sweet, out app is ready. Next we add some boring system routines:
   (stop-system!))
 ```
 
-And if we want to launch from terminal, lets add main class:
+And if we want to launch from terminal - add main class:
 
 ```clojure title="src/main.clj"
 (ns main
@@ -193,7 +193,7 @@ And if we want to launch from terminal, lets add main class:
 
 ```
 
-Lets run app from terminal
+Cool, run app from terminal
 ```
 clj -M:main
 ```
