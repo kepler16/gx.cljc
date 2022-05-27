@@ -7,9 +7,8 @@ slug: /example-app
 
 # More practical example
 
-You can't do much with static nodes. GX supports components, **component** is a dynamic node with custom signal handlers.
-
-We need graph and app configs. Let's define two signals for start and stop:
+You can't do much with static nodes. GX supports components, a **component** is a dynamic node with custom signal handlers.
+We need a graph and an app config. Let's define two signals for start and stop:
 
 ```clojure title="resources/graph.config.edn"
 {:signals
@@ -22,8 +21,8 @@ We need graph and app configs. Let's define two signals for start and stop:
 ```
 
 In app config need:
-- http server options
-- routes (example only, better to define routes inside code and add as component)
+- HTTP server options
+- routes (example only, better to define routes inside code and add them as a component)
 - router component
 - handler component
 - server component
@@ -45,7 +44,7 @@ In app config need:
                                                   :http/handler)}}}
 
 ```
-Our app is a simple web server with one route `/users`. You may notice new keyword `:gx/component` it is a component node. We using two different types of gx references in our config. Here is a full list of gx ref types:
+Our app is a simple web server with one route `/users`. You may notice a new keyword `:gx/component` it is a component node. We using two different types of gx references in our config. Here is a full list of gx ref types:
 
 | type          | description        | example                                                  |
 | ------------- | ------------------ | -------------------------------------------------------- |
@@ -89,7 +88,7 @@ Alright, let's write app code:
    :app/stop {:gx/processor (constantly nil)}})
 ```
 
-We defined `get-users` handler and `router` component, they linked in our configuration in `:http/routes` and `:http/router` nodes respectively. Next we add rest of our components:
+We defined `get-users` handler and `router` component, they are linked in our configuration in `:http/routes` and `:http/router` nodes respectively. Next, we add the rest of our components:
 ```clojure title="src/app.clj"
 ;; handler component
 (def handler
@@ -174,7 +173,7 @@ Sweet, out app is ready. Next we add some boring system routines:
   (stop-system!))
 ```
 
-And if we want to launch from terminal - add main class:
+And if we want to launch from the terminal - add the main class:
 
 ```clojure title="src/main.clj"
 (ns main
@@ -193,10 +192,10 @@ And if we want to launch from terminal - add main class:
 
 ```
 
-Cool, run app from terminal
+Cool, run the app from terminal
 ```
 clj -M:main
 ```
-Open your browser: http://localhost:8080/users. Viola! On the next step we will add database component.
+Open your browser: http://localhost:8080/users. Viola! In the next step, we will add a database component.
 
 Full source code is available on [github](https://github.com/kepler16/gx.cljc/tree/gx-v2/example).

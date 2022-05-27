@@ -28,7 +28,7 @@ Deps:
 
 To start using GX you need two things:
 - Graph configuration (**config**) - contains signal definitions
-- Graph itself - contains nodes of our state machine
+- The graph itself - contains nodes of our state machine
 ### Graph Configuration
 
 **Config** is a simple map with **signals**. Here we define two signals `:my/start` and `:my/stop`:
@@ -47,18 +47,18 @@ To start using GX you need two things:
                        :deps-from :gx/start}}})
 ```
 
-Every signal is a map with following keys:
+Every signal is a map with the following keys:
 
 - `:order` type of signal flow, topological/reverse topological (see examples below)
-- `:from-states` a set of states in graph on which this signal can be called, initlal state is `:uninitialized` and defined as constant in core namespace (`INITIAL_STATE`)
-- `:to-state` the state of node after signal successifully handled
-- `:deps-from` this field is used if signal's dependencies should be copied from another signal
+- `:from-states` a set of states in the graph on which this signal can be called, the initial state is `:uninitialized` and defined as constant in the core namespace (`INITIAL_STATE`)
+- `:to-state` the state of the node after the signal is successfully handled
+- `:deps-from` this field is used if the signal's dependencies should be copied from another signal
 
-There must be one (and only one) signal, which runs on `from-state = INITIAL_STATE`. It is called **startup signal**. In our case its `:my/start`.
+There must be one (and only one) signal, which runs on `from-state = INITIAL_STATE`. It is called a **startup signal**. In our case its `:my/start`.
 
 ## Graph
 
-**Graph** is a plain clojure map with defined nodes on root level. Here we create graph of three nodes. Node value can be any data structure, primitive value, function call or **gx reference** `gx/ref`:
+The **Graph** is a plain Clojure map with defined nodes on the root level. Here we create a graph of three nodes. Node value can be any data structure, primitive value, function call, or **gx reference** `gx/ref`:
 
 ```clojure
 (def fancy-graph
@@ -70,13 +70,13 @@ There must be one (and only one) signal, which runs on `from-state = INITIAL_STA
    :user/lang '(get (gx/ref :user/data) :spoken-language)})
 ```
 
- Here we have static node `:user/data` and two dependend nodes `:user/name` and `:user/lang`. The next step is **normalization**:
+ Here we have a static node `:user/data` and two dependent nodes `:user/name` and `:user/lang`. The next step is **normalization**:
 
  ```clojure
  (def normalized (gx/normalize graph-config fancy-graph))
  ```
  This step is not mandatory since every signal call normalizes unnormalized nodes.
- A normalization is a process of converting your graph to state machine where each node becomes signal receiver:
+Normalization is a process of converting your graph to a state machine where each node becomes a signal receiver:
  ```clojure
 #:user{:data
        ;; startup signal definition
@@ -115,15 +115,13 @@ There must be one (and only one) signal, which runs on `from-state = INITIAL_STA
         :gx/type :static,
         :gx/normalized? true}}
  ```
-Now every node is in normalized state. It has **startup** signal `:my/start` but not `:my/stop`, because we didn't define any signals on nodes. And node without signals becomes `:gx/type = :static` with **startup** signal only.
-
-Next we send signal to our graph by calling `gx/signal`. Signals runs asynchronously (using [funcool/promesa](https://github.com/funcool/promesa)):
+Now every node is in a normalized state. It has **startup** signal `:my/start` but not `:my/stop`, because we didn't define any signals on nodes. And node without signals becomes `:gx/type = :static` with **startup** signal only.
+Next, we send a signal to our graph by calling `gx/signal`. Signals run asynchronously (using [funcool/promesa](https://github.com/funcool/promesa)):
 ```clojure
 (def started @(gx/signal graph-config fancy-graph :my/start))
 ```
-Value in `started` variable is a normalized graph structure with new state. GX itself does not store graphs, it simply returns new graphs on every signal. Managing graph store should happen on application side.
-
-Here is some utility functions to view internals of graph:
+Value in the `started` variable is a normalized graph structure with the new state. GX itself does not store graphs, it simply returns new graphs on every signal. Managing graph stores should happen on the application side.
+Here are some utility functions to view the internals of the graph:
 ```clojure
 (gx/system-value started)
 ;; => #:user{:data
@@ -155,5 +153,5 @@ Here is some utility functions to view internals of graph:
 ;; => #:user{:data #{}, :name #{}, :lang #{}}
 ```
 
-[Tutorial](/example-app) contains more practical example.
+[Tutorial](/example-app) contains a more practical example.
 
