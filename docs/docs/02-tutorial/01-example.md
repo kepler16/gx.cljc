@@ -9,7 +9,7 @@ slug: /example-app
 
 You can't do much with static nodes. GX supports components, **component** is a dynamic node with custom signal handlers.
 
-We need graph and app configs. We define two signals for start and stop:
+We need graph and app configs. Lets define two signals for start and stop:
 
 ```clojure title="resources/graph.config.edn"
 {:signals
@@ -21,9 +21,9 @@ We need graph and app configs. We define two signals for start and stop:
              :to-state :stopped}}}
 ```
 
-In app config we define:
+In app config need:
 - http server options
-- routes (for example only, better to define routes inside code and add as component)
+- routes (example only, better to define routes inside code and add as component)
 - router component
 - handler component
 - server component
@@ -123,7 +123,7 @@ We defined `get-users` handler and `router` component, they linked in our config
    :app/stop {:gx/processor stop-server}})
 ```
 
-Sweet, out app ready. Next we add some boring system routines:
+Sweet, out app is ready. Next we add some boring system routines:
 
 ```clojure title="src/system.clj"
 (ns system
