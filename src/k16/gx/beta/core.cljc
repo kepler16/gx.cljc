@@ -2,9 +2,11 @@
   (:refer-clojure :exclude [ref])
   (:require [clojure.walk :as walk]
             [k16.gx.beta.impl :as impl]
-            [promesa.core :as p]
+            [k16.gx.beta.schema :as gx.schema]
             [malli.core :as m]
-            [malli.error :as me]))
+            [malli.error :as me]
+            [promesa.core :as p])
+  (:import #?(:clj [clojure.lang ExceptionInfo])))
 
 (defonce INITIAL_STATE :uninitialized)
 
@@ -86,7 +88,8 @@
 (defn throw-parse-error
   [msg node-definition token]
   (throw (ex-info (str msg " '" (pr-str token) "'")
-                  {:form node-definition
+                  {:type :parse-error
+                   :form node-definition
                    :expr token})))
 
 (defn form->runnable [form]
@@ -118,18 +121,31 @@
     {:env @props*
      :form resolved-form}))
 
-(defn normalize-signal-def [context signal-definition signal-key]
-  (let [signal-config (get-in context [:signals signal-key])
-        ;; is this map a map based def, or a runnable form
-        def? (and (map? signal-definition)
+(defn wrap-error-context
+  [signal-def]
+  (update signal-def
+          :gx/processor
+          (fn [processor]
+            (fn [params]
+              (try
+                (processor params)
+                (catch #?(:clj Exception :cljs js/Error) e
+                  (throw (ex-info "Signal processsor error"
+                                  {:message
+                                   #?(:cljs (.-message e)
+                                      :clj (.getMessage e))}))))))))
+
+(defn normalize-signal-def [node-key signal-def signal-key]
+  (let [;; is this map a map based def, or a runnable form
+        def? (and (map? signal-def)
                   (some #{:gx/props :gx/props-fn
                           :gx/processor :gx/deps
                           :gx/resolved-props}
-                        (keys signal-definition)))
+                        (keys signal-def)))
         with-pushed-down-form
         (if def?
-          signal-definition
-          (let [{:keys [form env]} (form->runnable signal-definition)]
+          signal-def
+          (let [{:keys [form env]} (form->runnable signal-def)]
             {:gx/processor (fn auto-signal-processor [{:keys [props]}]
                              (postwalk-evaluate props form))
              :gx/deps env
@@ -149,7 +165,7 @@
                    {:gx/resolved-props form
                     :gx/resolved-props-fn resolved-props-fn
                     :gx/deps env})))]
-    with-resolved-props))
+    (wrap-error-context with-resolved-props)))
 
 (defn get-initial-signal
   "Finds first signal, which is launched on normalized graph with
@@ -164,7 +180,7 @@
 
 (defn normalize-node-def
   "Given a component definition, "
-  [context node-definition]
+  [context node-key node-definition]
   (if (:gx/normalized? node-definition)
     node-definition
     (let [;; set of signals defined in the graph
@@ -188,8 +204,9 @@
           signal-defs (select-keys normalized-def signals)
           normalised-signal-defs
           (->> signal-defs
-               (map (fn [[k v]]
-                      [k (normalize-signal-def context v k)]))
+               (map (fn [[signal-key signal-def]]
+                      [signal-key (normalize-signal-def
+                                   node-key signal-def signal-key)]))
                (into {}))]
       (merge normalized-def
              normalised-signal-defs
@@ -204,20 +221,24 @@
    This acts as the static analysis step of the graph.
    Returns tuple of error explanation (if any) and normamized graph."
   [{:keys [context graph] :as gx-map}]
-  (let []
-        ;; TODO failing
-        ;; graph-issues (gxs/validate-graph graph-definition)
-        ;; config-issues (gxs/validate-graph-config graph-config)]
-    (assoc
-     gx-map
-     :graph
-     (cond
-      ;; graph-issues (throw (ex-info "Graph definition error", graph-issues))
-      ;; config-issues (throw (ex-info "Graph config error" config-issues))
-       :else (->> graph
-                  (map (fn [[k v]]
-                         [k (normalize-node-def context v)]))
-                  (into {}))))))
+  (let [graph-issues (gx.schema/validate-graph graph)
+        config-issues (gx.schema/validate-graph-config context)
+        ;; remove previous normalization errors
+        gx-map' (cond-> gx-map
+                  (not (:initial-graph gx-map)) (assoc :initial-graph graph)
+                  :always (dissoc :failures))]
+    (try
+      (cond
+        graph-issues (throw (ex-info "Graph definition error", graph-issues))
+        config-issues (throw (ex-info "Graph config error" config-issues))
+        :else (->> graph
+                   (map (fn [[k v]]
+                          [k (normalize-node-def context k v)]))
+                   (into {})
+                   (assoc gx-map' :graph)))
+      (catch ExceptionInfo e
+        (assoc gx-map' :failures {:message (ex-message e)
+                                  :data (ex-data e)})))))
 
 (defn graph-dependencies [graph signal-key]
   (->> graph
@@ -270,7 +291,7 @@
   [processor arg-map]
   (try
     [nil (processor arg-map)]
-    (catch #?(:clj Exception :cljs js/Error) e
+    (catch ExceptionInfo e
       [e nil])))
 
 (defn validate-signal
@@ -346,27 +367,44 @@
 
       :else node)))
 
+(defn gather-node-failure
+  [gx-map node node-key signal-key]
+  (if (:gx/failure node)
+    (assoc-in gx-map [:failures node-key]
+              {:signal-key signal-key
+               :message "Signal processor error"
+               :initial-node (get-in gx-map [:initial-graph node-key])
+               :internal-message (-> node
+                                     :gx/failure
+                                     ex-data
+                                     :message)})
+    gx-map))
+
 (defn signal [gx-map signal-key]
   (let [gx-map' (normalize gx-map)
         sorted (topo-sort gx-map' signal-key)]
     (p/loop [gxm gx-map'
              sorted sorted]
-      (if (seq sorted)
+      (cond
+        (:gx/failure gxm) gxm
+
+        (seq sorted)
         (p/let [node-key (first sorted)
                 node (node-signal gxm node-key signal-key)
                 next-gxm (assoc-in gxm [:graph node-key] node)]
-          (p/recur next-gxm (rest sorted)))
-        gxm))))
+          (p/recur (gather-node-failure next-gxm node node-key signal-key)
+                   (rest sorted)))
+
+        :else gxm))))
 
 
 (comment
   (let [graph {:a {:nested-a 1}
                :z '(get (gx/ref :a) :nested-a)
-               :y '(println "starting")
+               :d '(throw "starting")
                :b {:gx/start '(+ (gx/ref :z) 2)
-                   :gx/stop '(println "stopping")}}
+                   :gx/stop '(println"stopping")}}
         gx-norm (normalize {:graph graph
                             :context default-context})]
-    @(signal {:graph graph
-              :context default-context}
-             :gx/start)))
+    (normalize gx-norm)
+    #_@(signal gx-norm :gx/start)))
