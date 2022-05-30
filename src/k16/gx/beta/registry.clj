@@ -18,6 +18,8 @@
     @syms*))
 
 (defmacro load-graph!
+  "Loads graph from path. Additionally on cljs side, scans for symbols
+   and populates registry (advanced compilation support)"
   [path]
   (let [graph# (edn/read-string (slurp path))]
     (if (:ns &env)
@@ -25,7 +27,3 @@
                `(swap! registry* assoc ~(str v#) ~v#))
            '~graph#)
       `'~graph#)))
-
-
-(comment
-  (load-graph! "test/fixtures/graph.edn"))
