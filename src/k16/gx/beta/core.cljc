@@ -86,16 +86,16 @@
    form))
 
 (defn throw-parse-error
-  [msg node-definition token]
+  [msg form-def token]
   (throw (ex-info (str msg " '" (pr-str token) "'")
                   {:type :parse-error
-                   :form node-definition
+                   :form form-def
                    :expr token})))
 
-(defn form->runnable [form]
+(defn form->runnable [form-def]
   (let [props* (atom #{})
         resolved-form
-        (->> form
+        (->> form-def
              (walk/postwalk
               (fn [sub-form]
                 (cond
@@ -103,14 +103,14 @@
 
                   (special-symbol? sub-form)
                   (throw-parse-error "Special forms are not supported"
-                                     form
+                                     form-def
                                      sub-form)
 
                   (resolve-symbol sub-form) (resolve-symbol sub-form)
 
                   (symbol? sub-form)
                   (throw-parse-error "Unable to resolve symbol"
-                                     form
+                                     form-def
                                      sub-form)
 
                   (local-form? sub-form)
@@ -120,20 +120,6 @@
                   :else sub-form))))]
     {:env @props*
      :form resolved-form}))
-
-(defn wrap-error-context
-  [signal-def]
-  (update signal-def
-          :gx/processor
-          (fn [processor]
-            (fn [params]
-              (try
-                (processor params)
-                (catch #?(:clj Exception :cljs js/Error) e
-                  (throw (ex-info "Signal processsor error"
-                                  {:message
-                                   #?(:cljs (.-message e)
-                                      :clj (.getMessage e))}))))))))
 
 (defn normalize-signal-def [node-key signal-def signal-key]
   (let [;; is this map a map based def, or a runnable form
@@ -165,7 +151,7 @@
                    {:gx/resolved-props form
                     :gx/resolved-props-fn resolved-props-fn
                     :gx/deps env})))]
-    (wrap-error-context with-resolved-props)))
+    with-resolved-props))
 
 (defn get-initial-signal
   "Finds first signal, which is launched on normalized graph with
@@ -229,8 +215,8 @@
                   :always (dissoc :failures))]
     (try
       (cond
-        graph-issues (throw (ex-info "Graph definition error", graph-issues))
         config-issues (throw (ex-info "Graph config error" config-issues))
+        graph-issues (throw (ex-info "Graph definition error", graph-issues))
         :else (->> graph
                    (map (fn [[k v]]
                           [k (normalize-node-def context k v)]))
@@ -291,8 +277,10 @@
   [processor arg-map]
   (try
     [nil (processor arg-map)]
-    (catch ExceptionInfo e
-      [e nil])))
+    (catch #?(:clj Exception :cljs js/Error) e
+      [(ex-info "Processor error" {:message (impl/error-message e)
+                                   :args arg-map})
+       nil])))
 
 (defn validate-signal
   [context graph node-key signal-key]
@@ -399,6 +387,7 @@
 
 
 (comment
+  ;; throw
   (let [graph {:a {:nested-a 1}
                :z '(get (gx/ref :a) :nested-a)
                :d '(throw "starting")
@@ -406,5 +395,14 @@
                    :gx/stop '(println"stopping")}}
         gx-norm (normalize {:graph graph
                             :context default-context})]
-    (normalize gx-norm)
-    #_@(signal gx-norm :gx/start)))
+    (normalize gx-norm))
+
+
+  (let [graph {:a {:nested-a 1}
+               :z '(get (gx/ref :a) :nested-a)
+               :d '(println "starting")
+               :b {:gx/start '(+ (gx/ref :z) :foo)
+                   :gx/stop '(println "stopping")}}
+        gx-norm (normalize {:graph graph
+                            :context default-context})]
+    @(signal gx-norm :gx/start)))
