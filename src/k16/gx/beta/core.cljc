@@ -15,7 +15,7 @@
   (and (seq? form)
        (locals (first form))))
 
-(def default-graph-config
+(def default-context
   {:signals {:gx/start {:order :topological
                         :from-states #{:stopped INITIAL_STATE}
                         :to-state :started}
@@ -118,8 +118,8 @@
     {:env @props*
      :form resolved-form}))
 
-(defn normalize-signal-def [graph-config signal-definition signal-key]
-  (let [signal-config (get-in graph-config [:signals signal-key])
+(defn normalize-signal-def [context signal-definition signal-key]
+  (let [signal-config (get-in context [:signals signal-key])
         ;; is this map a map based def, or a runnable form
         def? (and (map? signal-definition)
                   (some #{:gx/props :gx/props-fn
@@ -154,8 +154,8 @@
 (defn get-initial-signal
   "Finds first signal, which is launched on normalized graph with
    :uninitialized nodes. Used on static nodes."
-  [graph-config]
-  (->> graph-config
+  [context]
+  (->> context
        :signals
        (filter (fn [[_ body]]
                  ((:from-states body) INITIAL_STATE)))
@@ -164,16 +164,16 @@
 
 (defn normalize-node-def
   "Given a component definition, "
-  [node-definition graph-config]
+  [context node-definition]
   (if (:gx/normalized? node-definition)
     node-definition
     (let [;; set of signals defined in the graph
-          signals (set (keys (:signals graph-config)))
+          signals (set (keys (:signals context)))
           ;; is this map a map based def, or a runnable form
           def? (and (map? node-definition)
                     (some (into #{} (concat signals [:gx/component]))
                           (keys node-definition)))
-          initial-signal (get-initial-signal graph-config)
+          initial-signal (get-initial-signal context)
           with-pushed-down-form (if def?
                                   node-definition
                                   {initial-signal node-definition})
@@ -189,7 +189,7 @@
           normalised-signal-defs
           (->> signal-defs
                (map (fn [[k v]]
-                      [k (normalize-signal-def graph-config v k)]))
+                      [k (normalize-signal-def context v k)]))
                (into {}))]
       (merge normalized-def
              normalised-signal-defs
@@ -199,22 +199,25 @@
               :gx/normalized? true}))))
 
 ;; - any state should have only one signal to transition from it
-(defn normalize-graph
+(defn normalize
   "Given a graph definition and config, return a normalised form. Idempotent.
    This acts as the static analysis step of the graph.
    Returns tuple of error explanation (if any) and normamized graph."
-  [graph-config graph-definition]
+  [{:keys [context graph] :as gx-map}]
   (let []
         ;; TODO failing
         ;; graph-issues (gxs/validate-graph graph-definition)
         ;; config-issues (gxs/validate-graph-config graph-config)]
-    (cond
+    (assoc
+     gx-map
+     :graph
+     (cond
       ;; graph-issues (throw (ex-info "Graph definition error", graph-issues))
       ;; config-issues (throw (ex-info "Graph config error" config-issues))
-      :else (->> graph-definition
-                 (map (fn [[k v]]
-                        [k (normalize-node-def v graph-config)]))
-                 (into {})))))
+       :else (->> graph
+                  (map (fn [[k v]]
+                         [k (normalize-node-def context v)]))
+                  (into {}))))))
 
 (defn graph-dependencies [graph signal-key]
   (->> graph
@@ -223,8 +226,8 @@
                 [k (into #{} deps)])))
        (into {})))
 
-(defn topo-sort [graph-config graph signal-key]
-  (if-let [signal-config (get-in graph-config [:signals signal-key])]
+(defn topo-sort [{:keys [context graph]} signal-key]
+  (if-let [signal-config (get-in context [:signals signal-key])]
     (let [deps-from (or (:deps-from signal-config)
                         signal-key)
           graph-deps (graph-dependencies graph deps-from)
@@ -243,20 +246,20 @@
                     {:signal-key signal-key}))))
 
 (defn system-property
-  [graph property-key]
+  [{:keys [graph]} property-key]
   (->> graph
        (map (fn [[k node]]
               [k (get node property-key)]))
        (into {})))
 
-(defn system-failure [graph]
-  (system-property graph :gx/failure))
+(defn system-failure [gx-map]
+  (system-property gx-map :gx/failure))
 
-(defn system-value [graph]
-  (system-property graph :gx/value))
+(defn system-value [gx-map]
+  (system-property gx-map :gx/value))
 
-(defn system-state [graph]
-  (system-property graph :gx/state))
+(defn system-state [gx-map]
+  (system-property gx-map :gx/state))
 
 (defn validate-props
   [schema props]
@@ -271,9 +274,9 @@
       [e nil])))
 
 (defn validate-signal
-  [graph-config graph node-key signal-key]
+  [context graph node-key signal-key]
   (let [{:keys [from-states to-state deps-from]}
-        (-> graph-config :signals signal-key)
+        (-> context :signals signal-key)
         node (get graph node-key)
         node-state (:gx/state node)
         {:keys [props processor]} (get node signal-key)]
@@ -294,8 +297,8 @@
    can restart itself by taking recalculated properties from deps.
    Static nodes just recalculates its values.
    If node does not support signal then do nothing."
-  [graph-config graph node-key signal-key]
-  (let [signal-config (-> graph-config :signals signal-key)
+  [{:keys [context graph]} node-key signal-key]
+  (let [signal-config (-> context :signals signal-key)
         {:keys [_deps-from from-states to-state]} signal-config
         node (get graph node-key)
         node-state (:gx/state node)
@@ -309,7 +312,7 @@
         ;;         (-> node deps-from :gx/props)
         ;;         props)
         ;; TODO: add props validation using malli schema
-        dep-nodes (system-value (select-keys graph deps))]
+        dep-nodes (system-value {:graph (select-keys graph deps)})]
         ;; props-falures (->> dep-nodes
         ;;                    (system-failure)
         ;;                    (filter :gx/failure))]
@@ -343,14 +346,27 @@
 
       :else node)))
 
-(defn signal [graph-config graph signal-key]
-  (let [normalised-graph (normalize-graph graph-config graph)
-        sorted (topo-sort graph-config normalised-graph signal-key)]
-    (p/loop [graph normalised-graph
+(defn signal [gx-map signal-key]
+  (let [gx-map' (normalize gx-map)
+        sorted (topo-sort gx-map' signal-key)]
+    (p/loop [gxm gx-map'
              sorted sorted]
       (if (seq sorted)
         (p/let [node-key (first sorted)
-                node (node-signal graph-config graph node-key signal-key)
-                next-graph (assoc graph node-key node)]
-          (p/recur next-graph (rest sorted)))
-        graph))))
+                node (node-signal gxm node-key signal-key)
+                next-gxm (assoc-in gxm [:graph node-key] node)]
+          (p/recur next-gxm (rest sorted)))
+        gxm))))
+
+
+(comment
+  (let [graph {:a {:nested-a 1}
+               :z '(get (gx/ref :a) :nested-a)
+               :y '(println "starting")
+               :b {:gx/start '(+ (gx/ref :z) 2)
+                   :gx/stop '(println "stopping")}}
+        gx-norm (normalize {:graph graph
+                            :context default-context})]
+    @(signal {:graph graph
+              :context default-context}
+             :gx/start)))

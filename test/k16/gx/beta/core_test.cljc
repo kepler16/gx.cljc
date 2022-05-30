@@ -38,7 +38,7 @@
 (defn load-config []
   (gx.reg/load-graph! "test/fixtures/graph.edn"))
 
-(def graph-config
+(def context
   {:signals {:gx/start {:order :topological
                         :from-states #{:stopped gx/INITIAL_STATE}
                         :to-state :started}
@@ -49,24 +49,24 @@
 
 (deftest graph-tests
   (let [run-checks
-        (fn [started stopped]
+        (fn [gx-started gx-stopped]
           (testing "graph should start correctly"
-            (is (= (gx/system-state started)
+            (is (= (gx/system-state gx-started)
                    {:a :started, :z :started, :y :started,
                     :b :started :c :started :x :started})
                 "all nodes should be started")
-            (is (= (dissoc (gx/system-value started) :c :x)
+            (is (= (dissoc (gx/system-value gx-started) :c :x)
                    {:a {:nested-a 1}, :z 1, :y nil, :b 3}))
 
-            (is (= @(:c (gx/system-value started))
+            (is (= @(:c (gx/system-value gx-started))
                    {:nested-a 1, :nested-a-x2 2}))
 
-            (is (= @(:x (gx/system-value started))
+            (is (= @(:x (gx/system-value gx-started))
                    {:nested-a 1, :some-value 3})))
 
           (testing "graph should stop correctly, nodes without signal handler
                     should not change state and value"
-            (is (= (gx/system-state stopped)
+            (is (= (gx/system-state gx-stopped)
                    {:a :started,
                     :z :started,
                     :y :started,
@@ -74,102 +74,107 @@
                     :c :stopped,
                     :x :stopped})
                 "all nodes should be stopped")
-            (is (= (gx/system-value stopped)
+            (is (= (gx/system-value gx-stopped)
                    {:a {:nested-a 1}, :z 1, :y nil, :b nil :c nil :x nil}))))
         graph (load-config)
-        normalized (gx/normalize-graph graph-config graph)]
+        gx-map (gx/normalize {:context context
+                              :graph graph})]
     (testing "normalization structure should be valid"
       (is
-       (m/validate gxs/?NormalizedGraphDefinition normalized)
+       (m/validate gxs/?NormalizedGraphDefinition (:graph gx-map))
        (me/humanize
-        (m/explain gxs/?NormalizedGraphDefinition normalized))))
+        (m/explain gxs/?NormalizedGraphDefinition (:graph gx-map)))))
 
     (testing "topo sorting"
-      (is (= (gx/topo-sort graph-config normalized :gx/start)
+      (is (= (gx/topo-sort gx-map :gx/start)
              '(:a :z :y :b :c :x))
           "should be topologically")
-      (is (= (gx/topo-sort graph-config normalized :gx/stop)
+      (is (= (gx/topo-sort gx-map :gx/stop)
              '(:x :c :b :y :z :a))
           "should be reverse-topologically"))
 
-    #?(:clj (let [started @(gx/signal graph-config normalized :gx/start)
-                  stopped @(gx/signal graph-config started :gx/stop)]
-              (run-checks started stopped))
+    #?(:clj (let [gx-started @(gx/signal gx-map :gx/start)
+                  gx-stopped @(gx/signal gx-started :gx/stop)]
+              (run-checks gx-started gx-stopped))
 
        :cljs (t/async
               done
-              (p/let [started (gx/signal graph-config normalized :gx/start)
-                      stopped (gx/signal graph-config started :gx/stop)]
-                (run-checks started stopped)
+              (p/let [gx-started (gx/signal gx-map :gx/start)
+                      gx-stopped (gx/signal gx-started :gx/stop)]
+                (run-checks gx-started gx-stopped)
                 (done))))))
 
 (deftest failed-normalization-test
-  (let [custom-graph-config {:signals
-                             {:custom/start {:order :topological
-                                             :from-states #{:stopped :uninitialized}
-                                             :to-state :started}
-                              :custom/stop {:order :reverse-topological
-                                            :from-states #{:started}
-                                            :to-state :stopped
-                                            :deps-from :gx/start}}}
-        config {:a {:nested-a 1}
-                :z '(get (gx/ref :a) :nested-a)
-                :y '(println "starting")
-                :d '(throw (ex-info "foo" (gx/ref :a)))
-                :b {:custom/start '(+ (gx/ref :z) 2)
-                    :custom/stop '(println "stopping")}}]
+  (let [custom-context {:signals
+                        {:custom/start {:order :topological
+                                        :from-states #{:stopped :uninitialized}
+                                        :to-state :started}
+                         :custom/stop {:order :reverse-topological
+                                       :from-states #{:started}
+                                       :to-state :stopped
+                                       :deps-from :gx/start}}}
+        graph {:a {:nested-a 1}
+               :z '(get (gx/ref :a) :nested-a)
+               :y '(println "starting")
+               :d '(throw (ex-info "foo" (gx/ref :a)))
+               :b {:custom/start '(+ (gx/ref :z) 2)
+                   :custom/stop '(println "stopping")}}]
     (is (thrown-with-msg?
          #?(:clj Exception :cljs js/Error)
          #"Special forms are not supported 'throw'"
-         (gx/normalize-graph custom-graph-config config)))))
+         (gx/normalize {:context custom-context
+                        :graph graph})))))
 
 (deftest component-support-test
-  (let [run-checks (fn [started stopped]
-                     (is (= (gx/system-state started)
+  (let [run-checks (fn [gx-started gx-stopped]
+                     (is (= (gx/system-state gx-started)
                             {:a :started, :c :started}))
-                     (is (= (:a (gx/system-value started))
+                     (is (= (:a (gx/system-value gx-started))
                             {:nested-a 1}))
-                     (is (= @(:c (gx/system-value started))
+                     (is (= @(:c (gx/system-value gx-started))
                             {:nested-a 1, :nested-a-x2 2}))
 
-                     (is (= (gx/system-state stopped)
+                     (is (= (gx/system-state gx-stopped)
                             {:a :started, :c :stopped}))
-                     (is (= (gx/system-value stopped)
+                     (is (= (gx/system-value gx-stopped)
                             {:a {:nested-a 1} :c nil})))
         graph {:a {:nested-a 1}
                :c {:gx/component 'k16.gx.beta.core-test/test-component}}
-        normalized (gx/normalize-graph graph-config graph)]
-    #?(:clj (let [started @(gx/signal graph-config normalized :gx/start)
-                  stopped @(gx/signal graph-config started :gx/stop)]
-              (run-checks started stopped))
+        gx-map (gx/normalize {:context context
+                              :graph graph})]
+    #?(:clj (let [gx-started @(gx/signal gx-map :gx/start)
+                  gx-stopped @(gx/signal gx-started :gx/stop)]
+              (run-checks gx-started gx-stopped))
        :cljs (t/async
               done
-              (p/let [started (gx/signal graph-config normalized :gx/start)
-                      stopped (gx/signal graph-config started :gx/stop)]
-                (run-checks started stopped)
+              (p/let [gx-started (gx/signal gx-map :gx/start)
+                      gx-stopped (gx/signal gx-started :gx/stop)]
+                (run-checks gx-started gx-stopped)
                 (done))))))
 
 (deftest subsequent-normalizations-test
-  (let [norm-1 (gx/normalize-graph graph-config (load-config))
-        norm-2 (gx/normalize-graph graph-config norm-1)
-        norm-3 (gx/normalize-graph graph-config norm-2)]
+  (let [gx-norm-1 (gx/normalize {:context context
+                              :graph (load-config)})
+        gx-norm-2 (gx/normalize gx-norm-1)
+        gx-norm-3 (gx/normalize gx-norm-2)]
     (testing "normalization should add :gx/normalized? flag"
-      (is (= #{true} (set (map :gx/normalized? (vals norm-1))))))
+      (is (= #{true} (set (map :gx/normalized? (vals (:graph gx-norm-1)))))))
     (testing "all graphs should be equal"
-      (is (= norm-1 norm-2 norm-3)))
+      (is (= gx-norm-1 gx-norm-2 gx-norm-3)))
     (testing "should normalize and flag new node in graph "
-      (let [new-graph (assoc norm-3 :new-node '(* 4 (gx/ref :z)))
-            new-norm (gx/normalize-graph graph-config new-graph)]
-        (is (:gx/normalized? (:new-node new-norm)))))))
+      (let [new-gx (assoc-in gx-norm-3 [:graph :new-node] '(* 4 (gx/ref :z)))
+            new-gx-norm (gx/normalize new-gx)]
+        (is (:gx/normalized? (:new-node (:graph new-gx-norm))))))))
 
 (deftest cyclic-dependency-test
   (let [graph {:a (gx/ref :b)
                :b (gx/ref :a)}
-        norm (gx/normalize-graph graph-config graph)]
+        gx-norm (gx/normalize {:context context
+                               :graph graph})]
     (is (thrown-with-msg?
          #?(:clj Exception :cljs js/Error)
          #"(\"There's a circular dependency between :a -> :b -> :a\")"
-         (gx/signal graph-config norm :gx/start)))))
+         (gx/signal gx-norm :gx/start)))))
 
 (defn my-props-fn
   [{:keys [a]}]
@@ -185,11 +190,12 @@
 
 (deftest props-fn-test
   (let [run-checks
-        (fn [started]
-          (is (= @(:comp (gx/system-value started))
+        (fn [gx-started]
+          (is (= @(:comp (gx/system-value gx-started))
                  {:name "John" :last-name "Doe" :full-name "John Doe"})))
         graph (gx.reg/load-graph! "test/fixtures/props_fn.edn")
-        started (gx/signal graph-config graph :gx/start)]
+        gx-map {:context context :graph graph}
+        started (gx/signal gx-map :gx/start)]
     #?(:clj (run-checks @started)
        :cljs (t/async
               done
@@ -212,9 +218,10 @@
       (gx/ref-maps :http/server :db/url) {:http/server {:port 8080}
                                           :db/url "jdbc://foo/bar/baz"})))
 
-
 #?(:cljs
    (deftest globaly-registered-components-test
+     ;; load graph, scan for symbols, populate registry
+     (gx.reg/load-graph! "test/fixtures/props_fn.edn")
      (t/are [js-v v] (= v js-v)
        (impl/sym->js-resolve 'k16.gx.beta.core-test/test-component)
        test-component
