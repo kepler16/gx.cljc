@@ -1,6 +1,6 @@
 (ns k16.gx.beta.impl
   #?(:cljs (:require [clojure.string :as string]
-                     [k16.gx.beta.registry :as reg])))
+                     [k16.gx.beta.registry :as gx.reg])))
 
 (defn sccs
   "Returns a topologically sorted list of strongly connected components.
@@ -95,12 +95,7 @@
     (pr-str dependency-error)))
 
 #?(:cljs (defn sym->js-resolve [sym]
-           (let [path (when (symbol? sym)
-                        (-> (str sym)
-                            (string/replace #"/" ".")
-                            (string/replace #"-" "_")
-                            (string/split #"\.")))]
-             (apply aget (concat [js/goog "global"] path)))))
+           (get @gx.reg/registry* (str sym))))
 
 (defn namespace-symbol
   "Returns symbol unchanged if it has a namespace, or with clojure.core as it's
