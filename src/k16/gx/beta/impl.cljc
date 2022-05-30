@@ -118,3 +118,9 @@
   "Recursively merges maps."
   [& maps]
   (reduce merger maps))
+
+
+(defn error-message
+  [e]
+  #?(:cljs (.-message e)
+     :clj (.getMessage e)))
