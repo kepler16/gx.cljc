@@ -15,7 +15,7 @@
 ;; this component is linked in fixtures/graphs.edn
 (def test-component
   {:gx/start {:gx/props-schema TestCoponentProps
-              :gx/props {:a '(gx/ref :a)}
+              :gx/props {:a (gx/ref :a)}
               :gx/processor
               (fn [{:keys [props _value]}]
                 (let [a (:a props)]
@@ -26,7 +26,7 @@
 
 (def test-component-2
   {:gx/start {:gx/props-schema TestCoponentProps
-              :gx/props {:a '(gx/ref :a)}
+              :gx/props {:a (gx/ref :a)}
               :gx/processor
               (fn [{:keys [props _value]}]
                 (let [a (:a props)]
@@ -36,7 +36,7 @@
                              nil)}})
 
 (defn load-config []
-  (gx.reg/load-graph! "test/fixtures/graphs.edn"))
+  (gx.reg/load-graph! "test/fixtures/graph.edn"))
 
 (def graph-config
   {:signals {:gx/start {:order :topological
@@ -163,8 +163,8 @@
         (is (:gx/normalized? (:new-node new-norm)))))))
 
 (deftest cyclic-dependency-test
-  (let [graph {:a '(gx/ref :b)
-               :b '(gx/ref :a)}
+  (let [graph {:a (gx/ref :b)
+               :b (gx/ref :a)}
         norm (gx/normalize-graph graph-config graph)]
     (is (thrown-with-msg?
          #?(:clj Exception :cljs js/Error)
@@ -177,7 +177,7 @@
          (str (:name a) " " (:last-name a))))
 
 (def my-new-component
-  {:gx/start {:gx/props '(gx/ref :a)
+  {:gx/start {:gx/props (gx/ref :a)
               :gx/processor
               (fn my-new-component-handler
                 [{:keys [props]}]
@@ -188,11 +188,7 @@
         (fn [started]
           (is (= @(:comp (gx/system-value started))
                  {:name "John" :last-name "Doe" :full-name "John Doe"})))
-        graph {:a {:name "John"
-                   :last-name "Doe"}
-               :comp
-               {:gx/component 'k16.gx.beta.core-test/my-new-component
-                :gx/start {:gx/props-fn 'k16.gx.beta.core-test/my-props-fn}}}
+        graph (gx.reg/load-graph! "test/fixtures/props_fn.edn")
         started (gx/signal graph-config graph :gx/start)]
     #?(:clj (run-checks @started)
        :cljs (t/async
@@ -207,14 +203,15 @@
              :db/url "jdbc://foo/bar/baz"}]
 
     (t/are [arg result] (= result (gx/postwalk-evaluate env arg))
-      '(gx/ref :http/server) {:port 8080}
+      (gx/ref :http/server) {:port 8080}
 
-      '(gx/ref-map :http/server) #:http{:server {:port 8080}}
+      (gx/ref-map :http/server) #:http{:server {:port 8080}}
 
-      '(gx/ref-path :http/server :port) 8080
+      (gx/ref-path :http/server :port) 8080
 
-      '(gx/ref-maps :http/server :db/url) {:http/server {:port 8080}
-                                           :db/url "jdbc://foo/bar/baz"})))
+      (gx/ref-maps :http/server :db/url) {:http/server {:port 8080}
+                                          :db/url "jdbc://foo/bar/baz"})))
+
 
 #?(:cljs
    (deftest globaly-registered-components-test
