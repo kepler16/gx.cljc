@@ -118,12 +118,14 @@
                :y '(println "starting")
                :d '(throw (ex-info "foo" (gx/ref :a)))
                :b {:custom/start '(+ (gx/ref :z) 2)
-                   :custom/stop '(println "stopping")}}]
-    (is (thrown-with-msg?
-         #?(:clj Exception :cljs js/Error)
-         #"Special forms are not supported 'throw'"
-         (gx/normalize {:context custom-context
-                        :graph graph})))))
+                   :custom/stop '(println "stopping")}}
+        gx-norm (gx/normalize {:context custom-context
+                               :graph graph})]
+    (is (:failures gx-norm))
+    (is (-> gx-norm :failures :message)
+        "Special forms are not supported 'throw'")
+    (is (-> gx-norm :failures :data)
+        {:data {:type :parse-error :form '(throw "starting") :expr 'throw}})))
 
 (deftest component-support-test
   (let [run-checks (fn [gx-started gx-stopped]
