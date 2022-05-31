@@ -122,10 +122,16 @@
         gx-norm (gx/normalize {:context custom-context
                                :graph graph})]
     (is (:failures gx-norm))
-    (is (-> gx-norm :failures first :message)
-        "Special forms are not supported 'throw'")
-    (is (-> gx-norm :failures first :data)
-        {:data {:type :parse-error :form '(throw "starting") :expr 'throw}})))
+    (is "Special forms are not supported"
+        (-> gx-norm :failures first :message))
+    (is {:error-type :normalize-node,
+         :node-key :d,
+         :node-value '(throw (ex-info "foo" (gx/ref :a))),
+         :signal-key nil,
+         :message "Special forms are not supported",
+         :internal-data
+         {:form-def '(throw (ex-info "foo" (gx/ref :a))), :token 'throw}}
+        (-> gx-norm :failures first))))
 
 (deftest component-support-test
   (let [run-checks (fn [gx-started gx-stopped]
@@ -243,13 +249,13 @@
                      :gx/stop '(println "stopping")}}
           gx-norm (gx/normalize {:graph graph
                                  :context gx/default-context})]
-      (is (= (-> gx-norm :failures first)
-             {:message "Special forms are not supported",
-              :data
-              {:internal-data {:form-def '(throw "starting"), :token 'throw},
-               :error-type :normalize-node,
-               :node-key :d,
-               :node-value '(throw "starting")}}))))
+      (is (= {:error-type :normalize-node,
+              :node-key :d,
+              :node-value '(throw "starting"),
+              :signal-key nil,
+              :message "Special forms are not supported",
+              :internal-data {:form-def '(throw "starting"), :token 'throw}}
+             (-> gx-norm :failures first)))))
 
   (testing "unresolved symbol failure"
     (let [graph {:a {:nested-a 1}
@@ -259,17 +265,16 @@
                      :gx/stop '(some-not-found-symbol "stopping")}}
           gx-norm (gx/normalize {:graph graph
                                  :context gx/default-context})]
-      (is (= (-> gx-norm :failures first)
-             {:message "Unable to resolve symbol",
-              :data
-              {:internal-data
-               {:form-def '(some-not-found-symbol "stopping"),
-                :token 'some-not-found-symbol},
-               :error-type :normalize-node,
-               :node-key :b,
-               :node-value
-               #:gx{:start '(+ (gx/ref :z) 2),
-                    :stop '(some-not-found-symbol "stopping")}}}))))
+      (is (= {:error-type :normalize-node,
+              :node-key :b,
+              :node-value #:gx{:start '(+ (gx/ref :z) 2),
+                               :stop '(some-not-found-symbol "stopping")},
+              :signal-key nil,
+              :message "Unable to resolve symbol",
+              :internal-data
+              {:form-def '(some-not-found-symbol "stopping"),
+               :token 'some-not-found-symbol}}
+             (-> gx-norm :failures first)))))
 
   #?(:clj
      (testing "processor failure"
