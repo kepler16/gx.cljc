@@ -4,6 +4,12 @@
 
 # Contributing
 
+## Build
+VERSION=v2.0.0-beta1 just build
+
+## Release
+VERSION=v2.0.0-beta1 just release
+
 ## To run clj tests
 
 ```bash

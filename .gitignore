@@ -12,3 +12,4 @@
 /.shadow-cljs/
 /.log/
 .tool-versions
+/.kbuild/

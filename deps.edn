@@ -17,6 +17,4 @@
 
   :dev {:extra-paths ["dev"]}
 
-  :build {:deps {io.github.seancorfield/build-clj
-                 {:git/tag "v0.6.3" :git/sha "9b8e09b"}}
-          :ns-default build}}}
+  :build {:deps {io.github.seancorfield/build-clj {:git/tag "v0.8.0" :git/sha "9bd8b8a"}}}}}
