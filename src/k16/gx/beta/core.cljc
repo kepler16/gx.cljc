@@ -103,6 +103,13 @@
   [message internal-data]
   (throw (ex-info message (->gx-error-data internal-data))))
 
+(defn gx-error->map
+  [ex]
+  (merge {}
+         *err-ctx*
+         {:message (ex-message ex)}
+         (ex-data ex)))
+
 (defn form->runnable [form-def]
   (let [props* (atom #{})
         resolved-form
@@ -237,8 +244,7 @@
                    (into {})
                    (assoc gx-map' :graph)))
       (catch ExceptionInfo e
-        (update gx-map' :failures conj {:message (ex-message e)
-                                        :data (ex-data e)})))))
+        (update gx-map' :failures conj (gx-error->map e))))))
 
 (defn graph-dependencies [graph signal-key]
   (->> graph
