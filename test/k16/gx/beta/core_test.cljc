@@ -122,9 +122,9 @@
         gx-norm (gx/normalize {:context custom-context
                                :graph graph})]
     (is (:failures gx-norm))
-    (is (-> gx-norm :failures :message)
+    (is (-> gx-norm :failures first :message)
         "Special forms are not supported 'throw'")
-    (is (-> gx-norm :failures :data)
+    (is (-> gx-norm :failures first :data)
         {:data {:type :parse-error :form '(throw "starting") :expr 'throw}})))
 
 (deftest component-support-test
@@ -199,12 +199,9 @@
         gx-map {:context context :graph graph}
         started (gx/signal gx-map :gx/start)]
     #?(:clj (run-checks @started)
-       :cljs (t/async
-              done
-              (-> started
-                  (p/then (fn [s]
-                            (run-checks s)
-                            (done))))))))
+       :cljs (t/async done (-> started (p/then (fn [s]
+                                                 (run-checks s)
+                                                 (done))))))))
 
 (deftest postwalk-evaluate-test
   (let [env {:http/server {:port 8080}
@@ -236,3 +233,78 @@
 
        (impl/sym->js-resolve 'k16.gx.beta.core-test/my-props-fn)
        my-props-fn)))
+
+(deftest failures-test
+  (testing "special forms is not supported"
+    (let [graph {:a {:nested-a 1}
+                 :z '(get (gx/ref :a) :nested-a)
+                 :d '(throw "starting")
+                 :b {:gx/start '(+ (gx/ref :z) 2)
+                     :gx/stop '(println "stopping")}}
+          gx-norm (gx/normalize {:graph graph
+                                 :context gx/default-context})]
+      (is (= (-> gx-norm :failures first)
+             {:message "Special forms are not supported",
+              :data
+              {:internal-data {:form-def '(throw "starting"), :token 'throw},
+               :error-type :normalize-node,
+               :node-key :d,
+               :node-value '(throw "starting")}}))))
+
+  (testing "unresolved symbol failure"
+    (let [graph {:a {:nested-a 1}
+                 :z '(get (gx/ref :a) :nested-a)
+                 :d '(println "starting")
+                 :b {:gx/start '(+ (gx/ref :z) 2)
+                     :gx/stop '(some-not-found-symbol "stopping")}}
+          gx-norm (gx/normalize {:graph graph
+                                 :context gx/default-context})]
+      (is (= (-> gx-norm :failures first)
+             {:message "Unable to resolve symbol",
+              :data
+              {:internal-data
+               {:form-def '(some-not-found-symbol "stopping"),
+                :token 'some-not-found-symbol},
+               :error-type :normalize-node,
+               :node-key :b,
+               :node-value
+               #:gx{:start '(+ (gx/ref :z) 2),
+                    :stop '(some-not-found-symbol "stopping")}}}))))
+
+  (testing "processor failure"
+    (let [graph {:a {:nested-a 1}
+                 :z '(get (gx/ref :a) :nested-a)
+                 :d '(println "starting")
+                 :c '(inc :bar)
+                 :b {:gx/start '(+ (gx/ref :z) :foo)
+                     :gx/stop '(println "stopping")}}
+          gx-norm (gx/normalize {:graph graph
+                                 :context gx/default-context})
+          err-msg (str "class clojure.lang.Keyword cannot be cast to "
+                       "class java.lang.Number (clojure.lang.Keyword "
+                       "is in unnamed module of loader 'app'; "
+                       "java.lang.Number is in module java.base of "
+                       "loader 'bootstrap')")
+          expect (list {:internal-data
+                        {:ex-message err-msg,
+                         :args {:props {:z 1}, :value nil}},
+                        :message "Signal processor error",
+                        :error-type :node-signal,
+                        :node-key :b,
+                        :node-value #:gx{:start '(+ (gx/ref :z) :foo),
+                                         :stop '(println "stopping")},
+                        :signal-key :gx/start}
+                       {:internal-data
+                        {:ex-message err-msg,
+                         :args {:props {}, :value nil}},
+                        :message "Signal processor error",
+                        :error-type :node-signal,
+                        :node-key :c,
+                        :node-value '(inc :bar),
+                        :signal-key :gx/start})]
+      #?(:clj (is (= (-> @(gx/signal gx-norm :gx/start) :failures)
+                     expect))
+         :cljs (t/async
+                done
+                (-> (gx/signal gx-norm :gx/start)
+                    (p/then #((is (= % expect)) (done)))))))))
