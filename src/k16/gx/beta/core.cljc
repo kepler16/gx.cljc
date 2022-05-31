@@ -356,8 +356,8 @@
                                   (map first))]
     (binding [*err-ctx* (assoc *err-ctx* :node-value (node-key initial-graph))]
       (cond
-      ;; Non subsequent signal and node-state != from-states
-      ;; ignore signal, return node
+        ;; Signal is not called more than once or node-state != from-states
+        ;; => ignore signal, return node
         (and (not (from-states node-state))
              (not= node-state to-state)) node
 
@@ -365,11 +365,7 @@
         (assoc node :gx/failure (->gx-error-data
                                  "Dependency node's failure"
                                  {:dep-node-keys failed-dep-node-keys}))
-      ;; TODO Check that we are actually turning symbols into resolved functions
-      ;; in the normalisation step
         (ifn? processor)
-      ;; either use resolved-props, or call props-fn and pass in (system-value graph deps), result
-      ;; of props-fn, should be validated against props-schema
         (let [props-result (if (fn? resolved-props-fn)
                              (run-props-fn resolved-props-fn dep-nodes-vals)
                              (postwalk-evaluate dep-nodes-vals resolved-props))
