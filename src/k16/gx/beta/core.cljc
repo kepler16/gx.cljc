@@ -383,8 +383,7 @@
 (defn gather-node-failure
   [gx-map node]
   (if-let [failure (:gx/failure node)]
-    (do (println "gather failure" *err-ctx*)
-      (update gx-map :failures conj failure))
+    (update gx-map :failures conj failure)
     gx-map))
 
 (defn signal [gx-map signal-key]
