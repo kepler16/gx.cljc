@@ -310,22 +310,6 @@
                          :args arg-map})
        nil])))
 
-(defn validate-signal
-  [context graph node-key signal-key]
-  (let [{:keys [from-states to-state deps-from]}
-        (-> context :signals signal-key)
-        node (get graph node-key)
-        node-state (:gx/state node)
-        {:keys [props processor]} (get node signal-key)]
-    (assert (get from-states node-state)
-            (str "Incompatible from-states '" node-state
-                 "', expected one of '" from-states "'"))
-    {:to-state to-state
-     :deps-from deps-from
-     :props props
-     :processor processor
-     :node node}))
-
 (defn node-signal
   "Trigger a signal through a node, assumes dependencies have been run.
    Subsequent signal calls is supported, but it should be handled in it's
