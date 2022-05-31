@@ -5,10 +5,10 @@
 # Contributing
 
 ## Build
-VERSION=2.0.0-beta1 just build
+VERSION=2.0.0-SNAPSHOT just build
 
 ## Release
-VERSION=2.0.0-beta1 just release
+VERSION=2.0.0-SNAPSHOT just release
 
 ## To run clj tests
 
