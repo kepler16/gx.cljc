@@ -282,10 +282,14 @@
 (defn system-state [gx-map]
   (system-property gx-map :gx/state))
 
-(defn validate-props
+(defn props-validate-error
   [schema props]
   (when-let [error (and schema (m/explain schema props))]
-    (me/humanize error)))
+    (binding [*err-ctx* (assoc *err-ctx* :error-type :props-validation)]
+      (->gx-error-data "Props validation error"
+                       {:props-value props
+                        :props-schema schema
+                        :shema-error (me/humanize error)}))))
 
 (defn- run-props-fn
   [props-fn arg-map]
@@ -365,10 +369,9 @@
         (let [props-result (if (fn? resolved-props-fn)
                              (run-props-fn resolved-props-fn dep-nodes)
                              (postwalk-evaluate dep-nodes resolved-props))
-              [error data] (if-let [e (validate-props props-schema props-result)]
-                             [{:props-value props-result
-                               :malli-schema props-schema
-                               :malli-error e}]
+              [error data] (if-let [validate-error (props-validate-error
+                                                    props-schema props-result)]
+                             [validate-error]
                              (run-processor
                               processor {:props props-result
                                          :value (:gx/value node)}))]
