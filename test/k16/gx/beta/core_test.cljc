@@ -271,40 +271,71 @@
                #:gx{:start '(+ (gx/ref :z) 2),
                     :stop '(some-not-found-symbol "stopping")}}}))))
 
-  (testing "processor failure"
-    (let [graph {:a {:nested-a 1}
-                 :z '(get (gx/ref :a) :nested-a)
-                 :d '(println "starting")
-                 :c '(inc :bar)
-                 :b {:gx/start '(+ (gx/ref :z) :foo)
-                     :gx/stop '(println "stopping")}}
-          gx-norm (gx/normalize {:graph graph
-                                 :context gx/default-context})
-          err-msg (str "class clojure.lang.Keyword cannot be cast to "
-                       "class java.lang.Number (clojure.lang.Keyword "
-                       "is in unnamed module of loader 'app'; "
-                       "java.lang.Number is in module java.base of "
-                       "loader 'bootstrap')")
-          expect (list {:internal-data
-                        {:ex-message err-msg,
-                         :args {:props {:z 1}, :value nil}},
-                        :message "Signal processor error",
-                        :error-type :node-signal,
-                        :node-key :b,
-                        :node-value #:gx{:start '(+ (gx/ref :z) :foo),
-                                         :stop '(println "stopping")},
-                        :signal-key :gx/start}
-                       {:internal-data
-                        {:ex-message err-msg,
-                         :args {:props {}, :value nil}},
-                        :message "Signal processor error",
-                        :error-type :node-signal,
-                        :node-key :c,
-                        :node-value '(inc :bar),
-                        :signal-key :gx/start})]
-      #?(:clj (is (= (-> @(gx/signal gx-norm :gx/start) :failures)
-                     expect))
-         :cljs (t/async
-                done
-                (-> (gx/signal gx-norm :gx/start)
-                    (p/then #((is (= % expect)) (done)))))))))
+  #?(:clj
+     (testing "processor failure"
+       (let [graph {:a {:nested-a 1}
+                    :z '(get (gx/ref :a) :nested-a)
+                    :d '(println "starting")
+                    :c '(inc :bar)
+                    :b {:gx/start '(/ (gx/ref :z) 0)
+                        :gx/stop '(println "stopping")}}
+             gx-norm (gx/normalize {:graph graph
+                                    :context gx/default-context})
+             expect (list {:internal-data
+                           {:ex-message "Divide by zero",
+                            :args {:props {:z 1}, :value nil}},
+                           :message "Signal processor error",
+                           :error-type :node-signal,
+                           :node-key :b,
+                           :node-value #:gx{:start '(/ (gx/ref :z) 0),
+                                            :stop '(println "stopping")},
+                           :signal-key :gx/start}
+                          {:internal-data
+                           {:ex-message
+                            (str "class clojure.lang.Keyword cannot be "
+                                 "cast to class java.lang.Number "
+                                 "(clojure.lang.Keyword is in unnamed "
+                                 "module of loader 'app'; java.lang.Number "
+                                 "is in module java.base of loader "
+                                 "'bootstrap')"),
+                            :args {:props {}, :value nil}},
+                           :message "Signal processor error",
+                           :error-type :node-signal,
+                           :node-key :c,
+                           :node-value '(inc :bar),
+                           :signal-key :gx/start})
+             p-gx-started (gx/signal gx-norm :gx/start)]
+         (is (= (:failures @p-gx-started) expect))))))
+
+(def props-validation-component
+  {:gx/start {:gx/props (gx/ref :a)
+              :gx/props-schema [:map [:foo string?]]
+              :gx/processor
+              (fn my-new-component-handler
+                [{:keys [props]}]
+                (atom props))}})
+
+(deftest props-validation-test
+  (let [run-checks
+        (fn [gx-started]
+          (is (= (first (:failures gx-started))
+                 {:error-type :props-validation,
+                  :message "Props validation error",
+                  :node-key :comp,
+                  :node-value
+                  #:gx{:component 'k16.gx.beta.core-test/props-validation-component,
+                       :start #:gx{:props-fn 'k16.gx.beta.core-test/my-props-fn}},
+                  :signal-key :gx/start,
+                  :internal-data
+                  {:props-value {:name "John",
+                                 :last-name "Doe",
+                                 :full-name "John Doe"},
+                   :props-schema [:map [:foo string?]],
+                   :shema-error {:foo ["missing required key"]}}})))
+        graph (gx.reg/load-graph! "test/fixtures/props_validation.edn")
+        gx-map {:context context :graph graph}
+        gx-started (gx/signal gx-map :gx/start)]
+    #?(:clj (run-checks @gx-started)
+       :cljs (t/async done (p/then gx-started (fn [s]
+                                                (run-checks s)
+                                                (done)))))))
