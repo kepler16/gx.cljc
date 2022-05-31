@@ -383,7 +383,7 @@
 
         :else node))))
 
-(defn gather-node-failure
+(defn merge-node-failure
   [gx-map node]
   (if-let [failure (:gx/failure node)]
     (update gx-map :failures conj failure)
@@ -405,6 +405,6 @@
                                              :node-key node-key})]
                          (node-signal gxm node-key signal-key))
                   next-gxm (assoc-in gxm [:graph node-key] node)]
-            (p/recur (gather-node-failure next-gxm node) (rest sorted)))
+            (p/recur (merge-node-failure next-gxm node) (rest sorted)))
 
           :else gxm)))))
