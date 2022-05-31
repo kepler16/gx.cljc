@@ -156,7 +156,7 @@
 
 (deftest subsequent-normalizations-test
   (let [gx-norm-1 (gx/normalize {:context context
-                              :graph (load-config)})
+                                 :graph (load-config)})
         gx-norm-2 (gx/normalize gx-norm-1)
         gx-norm-3 (gx/normalize gx-norm-2)]
     (testing "normalization should add :gx/normalized? flag"
@@ -199,9 +199,9 @@
         gx-map {:context context :graph graph}
         started (gx/signal gx-map :gx/start)]
     #?(:clj (run-checks @started)
-       :cljs (t/async done (-> started (p/then (fn [s]
-                                                 (run-checks s)
-                                                 (done))))))))
+       :cljs (t/async done (p/then started (fn [s]
+                                             (run-checks s)
+                                             (done)))))))
 
 (deftest postwalk-evaluate-test
   (let [env {:http/server {:port 8080}
