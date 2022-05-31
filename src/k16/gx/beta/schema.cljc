@@ -46,6 +46,9 @@
 
 (def ?GraphDefinition
   [:map-of keyword? [:or
+                     number?
+                     string?
+                     boolean?
                      map?
                      list?
                      [:map [:gx/component symbol?]]

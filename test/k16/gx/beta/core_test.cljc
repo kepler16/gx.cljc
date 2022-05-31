@@ -339,3 +339,34 @@
        :cljs (t/async done (p/then gx-started (fn [s]
                                                 (run-checks s)
                                                 (done)))))))
+
+#?(:clj
+   (deftest dependency-node-failures-test
+     (let [graph {:a 1
+                  :b '(/ (gx/ref :a) 0)
+                  :c '(gx/ref :b)
+                  :d '(gx/ref :c)}
+           gx-map {:graph graph
+                   :context gx/default-context}
+           expect (list {:internal-data {:dep-node-keys '(:c)},
+                         :message "Dependency node's failure",
+                         :error-type :node-signal,
+                         :node-key :d,
+                         :node-value '(gx/ref :c),
+                         :signal-key :gx/start}
+                        {:internal-data {:dep-node-keys '(:b)},
+                         :message "Dependency node's failure",
+                         :error-type :node-signal,
+                         :node-key :c,
+                         :node-value '(gx/ref :b),
+                         :signal-key :gx/start}
+                        {:internal-data
+                         {:ex-message "Divide by zero",
+                          :args {:props {:a 1}, :value nil}},
+                         :message "Signal processor error",
+                         :error-type :node-signal,
+                         :node-key :b,
+                         :node-value '(/ (gx/ref :a) 0),
+                         :signal-key :gx/start})
+           p-gx-started (gx/signal gx-map :gx/start)]
+       (is (= (:failures @p-gx-started) expect)))))
