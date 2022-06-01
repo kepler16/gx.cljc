@@ -86,10 +86,10 @@
         (m/explain gxs/?NormalizedGraphDefinition (:graph gx-map)))))
 
     (testing "topo sorting"
-      (is (= (gx/topo-sort gx-map :gx/start)
+      (is (= (second (gx/topo-sort gx-map :gx/start))
              '(:a :z :y :b :c :x))
           "should be topologically")
-      (is (= (gx/topo-sort gx-map :gx/stop)
+      (is (= (second (gx/topo-sort gx-map :gx/stop))
              '(:x :c :b :y :z :a))
           "should be reverse-topologically"))
 
