@@ -97,12 +97,39 @@
 #?(:cljs (defn sym->js-resolve [sym]
            (get @gx.reg/registry* (str sym))))
 
+(defn -or
+  [& args]
+  (loop [xs args]
+    (when (seq xs)
+      (if-let [v (or (first xs) (second xs))]
+        v
+        (recur (rest args))))))
+
+(defn -and
+  [& args]
+  (loop [xs args
+         last true]
+    (if (seq xs)
+      (if-let [v (first xs)]
+        (recur (rest xs) v)
+        (first xs))
+      last)))
+
+(def macros
+  {'or 'k16.gx.beta.impl/-or
+   'and 'k16.gx.beta.impl/-and})
+
 (defn namespace-symbol
   "Returns symbol unchanged if it has a namespace, or with clojure.core as it's
   namespace otherwise."
   [sym]
-  (if (namespace sym)
+  (cond
+    (namespace sym)
     #?(:clj sym :cljs (sym->js-resolve sym))
+
+    (get macros sym) (get macros sym)
+
+    :else
     #?(:clj (symbol "clojure.core" (name sym))
        :cljs ((ns-publics 'cljs.core) sym))))
 
