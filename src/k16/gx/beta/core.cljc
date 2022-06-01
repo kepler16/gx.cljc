@@ -15,12 +15,20 @@
 (def ^:dynamic *err-ctx*
   (map->ErrorContext {:error-type :general}))
 
-(def locals #{'gx/ref 'gx/ref-maps 'gx/ref-map 'gx/ref-path})
+(def locals #{'gx/ref 'gx/ref-maps 'gx/ref-map 'gx/ref-path 'gx/ref-env})
+
+;; local forms which create deps between graph nodes
+(def deps-locals (disj locals 'gx/ref-env))
 
 (defn local-form?
   [form]
   (and (seq? form)
        (locals (first form))))
+
+(defn deps-form?
+  [form]
+  (and (local-form? form)
+       (deps-locals (first form))))
 
 (def default-context
   {:signals {:gx/start {:order :topological
@@ -56,20 +64,27 @@
   [& keys]
   (apply list (conj keys 'gx/ref-path)))
 
+#?(:clj
+   (defn get-enviromnent-var
+     [form]
+     (if (nil? (second form))
+       (throw-gx-error "Ref error: environment variable name is nil"
+                       {:token form})
+       (System/getenv (str (second form))))))
+
 (defn parse-local
   [env form]
-  (cond
-    (= 'gx/ref (first form))
-    (get env (second form))
+  (condp = (first form)
+    'gx/ref (get env (second form))
 
-    (= 'gx/ref-map (first form))
-    {(second form) (get env (second form))}
+    'gx/ref-map {(second form) (get env (second form))}
 
-    (= 'gx/ref-maps (first form))
-    (select-keys env (rest form))
+    'gx/ref-maps (select-keys env (rest form))
 
-    (= 'gx/ref-path (first form))
-    (get-in env [(second form) (nth form 2)])))
+    'gx/ref-path (get-in env [(second form) (nth form 2)])
+
+    'gx/ref-env #?(:clj (get-enviromnent-var form)
+                   :cljs nil)))
 
 (defn postwalk-evaluate
   "A postwalk runtime signal processor evaluator, works most of the time.
@@ -119,6 +134,12 @@
                 (cond
                   (locals sub-form) sub-form
 
+                  (deps-form? sub-form)
+                  (do (swap! props* concat (rest sub-form))
+                      sub-form)
+
+                  (local-form? sub-form) sub-form
+
                   (special-symbol? sub-form)
                   (throw-gx-error "Special forms are not supported"
                                   {:form-def form-def
@@ -130,10 +151,6 @@
                   (throw-gx-error "Unable to resolve symbol"
                                   {:form-def form-def
                                    :token sub-form})
-
-                  (local-form? sub-form)
-                  (do (swap! props* concat (rest sub-form))
-                      sub-form)
 
                   :else sub-form))))]
     {:env @props*
