@@ -253,24 +253,62 @@
                 [k (into #{} deps)])))
        (into {})))
 
-(defn topo-sort [{:keys [context graph]} signal-key]
-  (if-let [signal-config (get-in context [:signals signal-key])]
-    (let [deps-from (or (:deps-from signal-config)
-                        signal-key)
-          graph-deps (graph-dependencies graph deps-from)
-          sorted-raw (impl/sccs graph-deps)]
-      (when-let [errors (->> sorted-raw
-                             (impl/dependency-errors graph-deps)
-                             (map impl/human-render-dependency-error)
-                             (seq))]
-        (throw (ex-info (str errors) {:errors errors})))
+(defn topo-sort
+  "Sorts graph nodes according to signal topology, returns vector of
+   [error, sorted nodes]"
+  [{:keys [context graph]} signal-key]
+  (binding [*err-ctx* (->err-ctx
+                       {:error-type :deps-sort
+                        :signal-key signal-key})]
+    (try
+      (if-let [signal-config (get-in context [:signals signal-key])]
+        (let [deps-from (or (:deps-from signal-config)
+                            signal-key)
+              graph-deps (graph-dependencies graph deps-from)
+              sorted-raw (impl/sccs graph-deps)]
+          (when-let [errors (->> sorted-raw
+                                 (impl/dependency-errors graph-deps)
+                                 (map impl/human-render-dependency-error)
+                                 (seq))]
+            (throw-gx-error (str errors) {:errors errors}))
 
-      (let [topo-sorted (map first sorted-raw)]
-        (if (= :topological (:order signal-config))
-          topo-sorted
-          (reverse topo-sorted))))
-    (throw (ex-info (str "Unknown signal key '" signal-key "'")
-                    {:signal-key signal-key}))))
+          [nil
+           (let [topo-sorted (map first sorted-raw)]
+             (if (= :topological (:order signal-config))
+               topo-sorted
+               (reverse topo-sorted)))])
+        (throw-gx-error (str "Unknown signal key '" signal-key "'")))
+      (catch ExceptionInfo e
+        [(ex-data e)]))))
+
+(defn get-component-props
+  [graph property-key]
+  (->> graph
+       (map (fn [[k node]]
+              [k (get node property-key)]))
+       (into {})))
+
+(defn node-props
+  [{:keys [graph]} property-key]
+  (let [[comps static]
+        (->> graph
+             (sort-by (fn [[_ v]] (:gx/type v)))
+             (partition-by (fn [[_ v]] (= :static (:gx/type v))))
+             (map (partial into {})))]
+    {:components (get-component-props comps property-key)
+     :static (get-component-props static property-key)}))
+
+(defn node-states
+  [gx-map]
+  (node-props gx-map :gx/state))
+
+(defn node-values
+  [gx-map]
+  (node-props gx-map :gx/value))
+
+(defn node-failures
+  [gx-map]
+  (node-props gx-map :gx/failure))
 
 (defn system-property
   [{:keys [graph]} property-key]
@@ -380,11 +418,14 @@
     gx-map))
 
 (defn signal [gx-map signal-key]
-  (let [gx-map' (normalize gx-map)
-        sorted (topo-sort gx-map' signal-key)]
-    (if (seq (:failures gx-map'))
-      gx-map'
-      (p/loop [gxm gx-map'
+  (let [gx-map (normalize (dissoc gx-map :failures))
+        [error sorted] (topo-sort gx-map signal-key)
+        gx-map (if error
+                 (update gx-map :failures conj error)
+                 gx-map)]
+    (if (seq (:failures gx-map))
+      (p/resolved gx-map)
+      (p/loop [gxm gx-map
                sorted sorted]
         (cond
           (seq sorted)
