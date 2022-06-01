@@ -179,10 +179,12 @@
                :b (gx/ref :a)}
         gx-norm (gx/normalize {:context context
                                :graph graph})]
-    (is (thrown-with-msg?
-         #?(:clj Exception :cljs js/Error)
-         #"(\"There's a circular dependency between :a -> :b -> :a\")"
-         (gx/signal gx-norm :gx/start)))))
+    (is {:internal-data
+         {:errors '("There's a circular dependency between :a -> :b -> :a")},
+         :error-type :deps-sort,
+         :signal-key :gx/start}
+        (-> (gx/signal gx-norm :gx/start) :failures first))))
+
 
 (defn my-props-fn
   [{:keys [a]}]
