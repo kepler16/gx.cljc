@@ -46,11 +46,13 @@
 
 (def ?GraphDefinition
   [:map-of keyword? [:or
+                     nil?
+                     keyword?
                      number?
                      string?
                      boolean?
                      map?
-                     list?
+                     seq?
                      [:map [:gx/component symbol?]]
                      ?NodeDefinition]])
 
