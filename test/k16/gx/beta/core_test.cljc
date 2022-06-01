@@ -126,7 +126,7 @@
         (-> gx-norm :failures first :message))
     (is {:error-type :normalize-node,
          :node-key :d,
-         :node-value '(throw (ex-info "foo" (gx/ref :a))),
+         :node-contents '(throw (ex-info "foo" (gx/ref :a))),
          :signal-key nil,
          :message "Special forms are not supported",
          :internal-data
@@ -253,8 +253,7 @@
                                  :context gx/default-context})]
       (is (= {:error-type :normalize-node,
               :node-key :d,
-              :node-value '(throw "starting"),
-              :signal-key nil,
+              :node-contents '(throw "starting"),
               :message "Special forms are not supported",
               :internal-data {:form-def '(throw "starting"), :token 'throw}}
              (-> gx-norm :failures first)))))
@@ -269,9 +268,8 @@
                                  :context gx/default-context})]
       (is (= {:error-type :normalize-node,
               :node-key :b,
-              :node-value #:gx{:start '(+ (gx/ref :z) 2),
+              :node-contents #:gx{:start '(+ (gx/ref :z) 2),
                                :stop '(some-not-found-symbol "stopping")},
-              :signal-key nil,
               :message "Unable to resolve symbol",
               :internal-data
               {:form-def '(some-not-found-symbol "stopping"),
@@ -294,7 +292,7 @@
                            :message "Signal processor error",
                            :error-type :node-signal,
                            :node-key :b,
-                           :node-value #:gx{:start '(/ (gx/ref :z) 0),
+                           :node-contents #:gx{:start '(/ (gx/ref :z) 0),
                                             :stop '(println "stopping")},
                            :signal-key :gx/start}
                           {:internal-data
@@ -309,7 +307,7 @@
                            :message "Signal processor error",
                            :error-type :node-signal,
                            :node-key :c,
-                           :node-value '(inc :bar),
+                           :node-contents '(inc :bar),
                            :signal-key :gx/start})
              p-gx-started (gx/signal gx-norm :gx/start)]
          (is (= (:failures @p-gx-started) expect))))))
@@ -329,7 +327,7 @@
                  {:error-type :props-validation,
                   :message "Props validation error",
                   :node-key :comp,
-                  :node-value
+                  :node-contents
                   #:gx{:component 'k16.gx.beta.core-test/props-validation-component,
                        :start #:gx{:props-fn 'k16.gx.beta.core-test/my-props-fn}},
                   :signal-key :gx/start,
@@ -356,24 +354,23 @@
            gx-map {:graph graph
                    :context gx/default-context}
            expect (list {:internal-data {:dep-node-keys '(:c)},
-                         :message "Dependency node's failure",
+                         :message "Failure in dependencies",
                          :error-type :node-signal,
                          :node-key :d,
-                         :node-value '(gx/ref :c),
+                         :node-contents '(gx/ref :c),
                          :signal-key :gx/start}
                         {:internal-data {:dep-node-keys '(:b)},
-                         :message "Dependency node's failure",
+                         :message "Failure in dependencies",
                          :error-type :node-signal,
                          :node-key :c,
-                         :node-value '(gx/ref :b),
+                         :node-contents '(gx/ref :b),
                          :signal-key :gx/start}
                         {:internal-data
-                         {:ex-message "Divide by zero",
-                          :args {:props {:a 1}, :value nil}},
+                         {:ex-message "Divide by zero", :args {:props {:a 1}, :value nil}},
                          :message "Signal processor error",
                          :error-type :node-signal,
                          :node-key :b,
-                         :node-value '(/ (gx/ref :a) 0),
+                         :node-contents '(/ (gx/ref :a) 0),
                          :signal-key :gx/start})
            p-gx-started (gx/signal gx-map :gx/start)]
-       (is (= (:failures @p-gx-started) expect)))))
+       (is (= expect (:failures @p-gx-started))))))
