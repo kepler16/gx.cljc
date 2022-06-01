@@ -10,10 +10,34 @@
 
 (defonce INITIAL_STATE :uninitialized)
 
-(defrecord ErrorContext [error-type node-key node-value signal-key])
+(defrecord ErrorContext [error-type node-key node-contents signal-key])
+
+(def ->err-ctx map->ErrorContext)
 
 (def ^:dynamic *err-ctx*
-  (map->ErrorContext {:error-type :general}))
+  (->err-ctx {:error-type :general}))
+
+(defn ->gx-error-data
+  ([internal-data]
+   (->gx-error-data nil internal-data))
+  ([message internal-data]
+   (->> *err-ctx*
+        (filter (fn [[_ v]] v))
+        (into (if message {:message message} {}))
+        (merge {:internal-data internal-data}))))
+
+(defn throw-gx-error
+  ([message]
+   (throw-gx-error message nil))
+  ([message internal-data]
+   (throw (ex-info message (->gx-error-data internal-data)))))
+
+(defn gx-error->map
+  [ex]
+  (->> (ex-data ex)
+       (merge *err-ctx*)
+       (filter (fn [[_ v]] v))
+       (into {:message (ex-message ex)})))
 
 (def locals #{'gx/ref 'gx/ref-maps 'gx/ref-map 'gx/ref-path 'gx/ref-env})
 
@@ -92,38 +116,18 @@
   For cljs, consider compiled components or sci-evaluator, would require allowing
   for swappable evaluation stategies. Point to docs, to inform how to swap evaluator,
   or alternative ways to specify functions (that get compiled) that can be used."
-  [env form]
+  [props form]
   (walk/postwalk
    (fn [x]
      (cond
        (local-form? x)
-       (parse-local env x)
+       (parse-local props x)
 
        (and (seq? x) (ifn? (first x)))
        (apply (first x) (rest x))
 
        :else x))
    form))
-
-(defn ->gx-error-data
-  ([internal-data]
-   (->gx-error-data nil internal-data))
-  ([message internal-data]
-   (->> *err-ctx*
-        (filter (fn [[_ v]] v))
-        (into (if message {:message message} {}))
-        (merge {:internal-data internal-data}))))
-
-(defn throw-gx-error
-  [message internal-data]
-  (throw (ex-info message (->gx-error-data internal-data))))
-
-(defn gx-error->map
-  [ex]
-  (merge {}
-         *err-ctx*
-         {:message (ex-message ex)}
-         (ex-data ex)))
 
 (defn form->runnable [form-def]
   (let [props* (atom #{})
@@ -224,10 +228,10 @@
                            :gx/value nil})
           signal-defs (select-keys normalized-def signals)
           normalised-signal-defs
-          (binding [*err-ctx* (map->ErrorContext
-                                     {:error-type :normalize-node
-                                      :node-key node-key
-                                      :node-value (node-key initial-graph)})]
+          (binding [*err-ctx* (->err-ctx
+                               {:error-type :normalize-node
+                                :node-key node-key
+                                :node-contents (node-key initial-graph)})]
             (->> signal-defs
                  (map (fn [[signal-key signal-def]]
                         [signal-key (normalize-signal-def signal-def)]))
@@ -399,7 +403,7 @@
                                   (system-failure)
                                   (filter (fn [[_ v]] v))
                                   (map first))]
-    (binding [*err-ctx* (assoc *err-ctx* :node-value (node-key initial-graph))]
+    (binding [*err-ctx* (assoc *err-ctx* :node-contents (node-key initial-graph))]
       (cond
         ;; Signal is not called more than once or node-state != from-states
         ;; => ignore signal, return node
@@ -408,7 +412,7 @@
 
         (seq failed-dep-node-keys)
         (assoc node :gx/failure (->gx-error-data
-                                 "Dependency node's failure"
+                                 "Failure in dependencies"
                                  {:dep-node-keys failed-dep-node-keys}))
         (ifn? processor)
         (let [props-result (if (fn? resolved-props-fn)
@@ -447,7 +451,7 @@
         (cond
           (seq sorted)
           (p/let [node-key (first sorted)
-                  node (binding [*err-ctx* (map->ErrorContext
+                  node (binding [*err-ctx* (->err-ctx
                                             {:error-type :node-signal
                                              :signal-key signal-key
                                              :node-key node-key})]
