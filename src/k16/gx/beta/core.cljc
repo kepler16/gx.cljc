@@ -329,7 +329,9 @@
 
 (defn node-failures
   [gx-map]
-  (node-props gx-map :gx/failure))
+  (let [{:keys [components static]} (node-props gx-map :gx/failure)]
+    {:components (->> components (filter second) (into {}))
+     :statis (->> static (filter second) (into {}))}))
 
 (defn system-failure [gx-map]
   (get-component-props (:graph gx-map) :gx/failure))
