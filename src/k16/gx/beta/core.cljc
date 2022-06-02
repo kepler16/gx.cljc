@@ -331,21 +331,14 @@
   [gx-map]
   (node-props gx-map :gx/failure))
 
-(defn system-property
-  [{:keys [graph]} property-key]
-  (->> graph
-       (map (fn [[k node]]
-              [k (get node property-key)]))
-       (into {})))
-
 (defn system-failure [gx-map]
-  (system-property gx-map :gx/failure))
+  (get-component-props (:graph gx-map) :gx/failure))
 
 (defn system-value [gx-map]
-  (system-property gx-map :gx/value))
+  (get-component-props (:graph gx-map) :gx/value))
 
 (defn system-state [gx-map]
-  (system-property gx-map :gx/state))
+  (get-component-props (:graph gx-map) :gx/state))
 
 (defn props-validate-error
   [schema props]
