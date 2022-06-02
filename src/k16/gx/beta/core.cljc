@@ -378,12 +378,17 @@
    If node does not support signal then do nothing."
   [{:keys [context graph initial-graph]} node-key signal-key]
   (let [signal-config (-> context :signals signal-key)
-        {:keys [_deps-from from-states to-state]} signal-config
+        {:keys [deps-from from-states to-state]} signal-config
         node (get graph node-key)
         node-state (:gx/state node)
         signal-def (get node signal-key)
-        {:gx/keys [processor resolved-props
-                   resolved-props-fn deps props-schema]} signal-def
+        {:gx/keys [processor props-schema resolved-props]} signal-def
+        ;; take deps from another signal of node if current signal has deps-from
+        ;; and does not have resolved props
+        {:gx/keys [resolved-props resolved-props-fn deps]}
+        (if (and deps-from (not resolved-props))
+          (get node deps-from)
+          signal-def)
         ;; _ (validate-signal graph node-key signal-key graph-config)
         ;;
         ;; :deps-from is ignored if component have :props
