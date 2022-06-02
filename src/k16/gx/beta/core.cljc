@@ -300,7 +300,7 @@
                (reverse topo-sorted)))])
         (throw-gx-error (str "Unknown signal key '" signal-key "'")))
       (catch ExceptionInfo e
-        [(ex-data e)]))))
+        [(assoc (ex-data e) :message (ex-message e))]))))
 
 (defn get-component-props
   [graph property-key]
