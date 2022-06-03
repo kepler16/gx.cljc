@@ -30,7 +30,9 @@
   ([message]
    (throw-gx-error message nil))
   ([message internal-data]
-   (throw (ex-info message (->gx-error-data internal-data)))))
+   (throw (ex-info message (->gx-error-data
+                            message
+                            internal-data)))))
 
 (defn gx-error->map
   [ex]
@@ -278,9 +280,8 @@
   "Sorts graph nodes according to signal topology, returns vector of
    [error, sorted nodes]"
   [{:keys [context graph]} signal-key]
-  (binding [*err-ctx* (->err-ctx
-                       {:error-type :deps-sort
-                        :signal-key signal-key})]
+  (binding [*err-ctx* (->err-ctx {:error-type :deps-sort
+                                  :signal-key signal-key})]
     (try
       (if-let [signal-config (get-in context [:signals signal-key])]
         (let [deps-from (or (:deps-from signal-config)
@@ -291,8 +292,7 @@
                                  (impl/dependency-errors graph-deps)
                                  (map impl/human-render-dependency-error)
                                  (seq))]
-            (throw-gx-error (str errors) {:errors errors}))
-
+            (throw-gx-error "Dependency errors" {:errors errors}))
           [nil
            (let [topo-sorted (map first sorted-raw)]
              (if (= :topological (:order signal-config))
