@@ -58,7 +58,9 @@
 
 (def default-context
   {:initial-state :uninitialised
-   :normalize {:auto-signal :gx/start}
+   :normalize {:auto-signal :gx/start
+               :props-signal #{:gx/start :gx/stop :gx/pause}}
+   :signal-mapping {}
    :signals {:gx/start {:order :topological
                         :from-states #{:stopped :uninitialised}
                         :to-state :started}
@@ -225,6 +227,8 @@
                                        (into {auto-signal node-definition})))
           component (some-> with-pushed-down-form :gx/component resolve-symbol)
           ;; merge in component
+          ;; TODO support nested gx/component
+          ;; TODO support signal-mapping
           with-component (impl/deep-merge
                           component (dissoc with-pushed-down-form :gx/component))
           normalized-def (merge
