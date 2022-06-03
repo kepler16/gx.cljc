@@ -110,6 +110,7 @@
     'gx/ref-path (get-in env [(second form) (nth form 2)])
 
     'gx/ref-env #?(:clj (get-enviromnent-var form)
+                   ;; TODO add cljs get env
                    :cljs nil)))
 
 (defn postwalk-evaluate
@@ -308,30 +309,6 @@
        (map (fn [[k node]]
               [k (get node property-key)]))
        (into {})))
-
-(defn node-props
-  [{:keys [graph]} property-key]
-  (let [[comps static]
-        (->> graph
-             (sort-by (fn [[_ v]] (:gx/type v)))
-             (partition-by (fn [[_ v]] (= :static (:gx/type v))))
-             (map (partial into {})))]
-    {:components (get-component-props comps property-key)
-     :static (get-component-props static property-key)}))
-
-(defn node-states
-  [gx-map]
-  (node-props gx-map :gx/state))
-
-(defn node-values
-  [gx-map]
-  (node-props gx-map :gx/value))
-
-(defn node-failures
-  [gx-map]
-  (let [{:keys [components static]} (node-props gx-map :gx/failure)]
-    {:components (->> components (filter second) (into {}))
-     :statis (->> static (filter second) (into {}))}))
 
 (defn system-failure [gx-map]
   (get-component-props (:graph gx-map) :gx/failure))
