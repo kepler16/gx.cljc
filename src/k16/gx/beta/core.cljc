@@ -59,6 +59,7 @@
 (def default-context
   {:initial-state :uninitialised
    :normalize {:auto-signal :gx/start
+               ;; TODO implement pushdown-props
                :props-signal #{:gx/start :gx/stop :gx/pause}}
    :signal-mapping {}
    :signals {:gx/start {:order :topological
@@ -82,17 +83,21 @@
   [key]
   (list 'gx/ref key))
 
+;; TODO remove this
 (defn ref-map
   [key]
   (list 'gx/ref-map key))
 
+;; TODO rename to (ref-keys [:key]) and should accept vector
 (defn ref-maps
   [& keys]
   (apply list (conj keys 'gx/ref-maps)))
 
+;; TODO remove this
 (defn ref-path
   [& keys]
   (apply list (conj keys 'gx/ref-path)))
+
 
 #?(:clj
    (defn get-enviromnent-var
@@ -113,6 +118,7 @@
 
     'gx/ref-path (get-in env [(second form) (nth form 2)])
 
+    ;; TODO remove this
     'gx/ref-env #?(:clj (get-enviromnent-var form)
                    ;; TODO add cljs get env
                    :cljs nil)))
