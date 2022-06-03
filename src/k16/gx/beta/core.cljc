@@ -5,10 +5,10 @@
             [k16.gx.beta.schema :as gx.schema]
             [malli.core :as m]
             [malli.error :as me]
-            [promesa.core :as p])
+            [promesa.core :as p]
+            [clojure.set :as set]
+            [k16.gx.beta.core :as gx])
   (:import #?(:clj [clojure.lang ExceptionInfo])))
-
-(defonce INITIAL_STATE :uninitialized)
 
 (defrecord ErrorContext [error-type node-key node-contents signal-key])
 
@@ -57,8 +57,10 @@
        (deps-locals (first form))))
 
 (def default-context
-  {:signals {:gx/start {:order :topological
-                        :from-states #{:stopped INITIAL_STATE}
+  {:initial-state :uninitialised
+   :normalize {:auto-signal :gx/start}
+   :signals {:gx/start {:order :topological
+                        :from-states #{:stopped :uninitialised}
                         :to-state :started}
              :gx/stop {:order :reverse-topological
                        :from-states #{:started}
@@ -195,39 +197,39 @@
                     :gx/deps env})))]
     with-resolved-props))
 
-(defn get-initial-signal
-  "Finds first signal, which is launched on normalized graph with
-   :uninitialized nodes. Used on static nodes."
-  [context]
-  (->> context
-       :signals
-       (filter (fn [[_ body]]
-                 ((:from-states body) INITIAL_STATE)))
-       (map first)
-       first))
-
 (defn normalize-node-def
   "Given a component definition, "
   [{:keys [context initial-graph]} node-key node-definition]
   (if (:gx/normalized? node-definition)
     node-definition
-    (let [;; set of signals defined in the graph
+    (let [{:keys [initial-state]} context
+          {:keys [auto-signal]} (:normalize context)
+          ;; set of signals defined in the graph
           signals (set (keys (:signals context)))
           ;; is this map a map based def, or a runnable form
           def? (and (map? node-definition)
                     (some (into #{} (concat signals [:gx/component]))
                           (keys node-definition)))
-          initial-signal (get-initial-signal context)
           with-pushed-down-form (if def?
                                   node-definition
-                                  {initial-signal node-definition})
+                                  (->> (disj signals auto-signal)
+                                       (map (fn [other-signal]
+                                              [other-signal
+                                               {;; :value just passes value and
+                                                ;; supports state transitions of
+                                                ;; auto-components for all other signals
+                                                :gx/processor :value
+                                                ;; TODO update signal processing
+                                                ;; to accept nil props
+                                                :gx/resolved-props {}}]))
+                                       (into {auto-signal node-definition})))
           component (some-> with-pushed-down-form :gx/component resolve-symbol)
           ;; merge in component
           with-component (impl/deep-merge
                           component (dissoc with-pushed-down-form :gx/component))
           normalized-def (merge
                           with-component
-                          {:gx/state INITIAL_STATE
+                          {:gx/state initial-state
                            :gx/value nil})
           signal-defs (select-keys normalized-def signals)
           normalised-signal-defs
@@ -252,7 +254,7 @@
    This acts as the static analysis step of the graph.
    Returns tuple of error explanation (if any) and normamized graph."
   [{:keys [context graph] :as gx-map}]
-  (let [graph-issues (gx.schema/validate-graph graph)
+  (let [;;graph-issues (gx.schema/validate-graph graph)
         config-issues (gx.schema/validate-graph-config context)
         ;; remove previous normalization errors
         gx-map' (cond-> gx-map
@@ -261,7 +263,7 @@
     (try
       (cond
         config-issues (throw (ex-info "Graph config error" config-issues))
-        graph-issues (throw (ex-info "Graph definition error", graph-issues))
+        ;;graph-issues (throw (ex-info "Graph definition error", graph-issues))
         :else (->> graph
                    (map (fn [[k v]]
                           [k (normalize-node-def gx-map' k v)]))
@@ -398,8 +400,12 @@
       (cond
         ;; Signal is not called more than once or node-state != from-states
         ;; => ignore signal, return node
-        (and (not (from-states node-state))
-             (not= node-state to-state)) node
+
+        (or ;; signal isn't defined for this state transition
+            (not (contains? from-states node-state))
+            ;; node is already in to-state
+            (= node-state to-state))
+        node
 
         (seq failed-dep-node-keys)
         (assoc node :gx/failure (->gx-error-data
