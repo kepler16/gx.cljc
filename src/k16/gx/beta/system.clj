@@ -1,5 +1,6 @@
 (ns k16.gx.beta.system
-  (:require [k16.gx.beta.core :as gx]))
+  (:require [k16.gx.beta.core :as gx]
+            [k16.gx.beta.errors :as gx.errors]))
 
 (defonce registry* (atom {}))
 
@@ -32,6 +33,11 @@
       (cond-> nil
         (seq failed-comps) (assoc :components failed-comps)
         (seq failed-static) (assoc :static failed-static)))))
+
+(defn failures-humanized
+  [system-name]
+  (when-let [gx-map (get @registry* system-name)]
+    (map gx.errors/humanize (:failures gx-map))))
 
 (defn register! [system-name gx-map]
   (swap! registry* assoc system-name (gx/normalize gx-map)))
