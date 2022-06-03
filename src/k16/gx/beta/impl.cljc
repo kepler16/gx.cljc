@@ -1,6 +1,5 @@
 (ns k16.gx.beta.impl
-  #?(:cljs (:require [clojure.string :as string]
-                     [k16.gx.beta.registry :as gx.reg])))
+  #?(:cljs (:require [k16.gx.beta.registry :as gx.reg])))
 
 (defn sccs
   "Returns a topologically sorted list of strongly connected components.
@@ -82,10 +81,10 @@
   (case (:type dependency-error)
     :missing
     (str (:from dependency-error) " depends on " (:to dependency-error)
-         ", but " (:to dependency-error) " doesn't exist.")
+         ", but " (:to dependency-error) " doesn't exist")
 
     :cycle
-    (str "There's a circular dependency between "
+    (str "circular "
          (apply str (interpose
                      " -> "
                      (concat
