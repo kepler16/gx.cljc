@@ -408,3 +408,23 @@
        (is (= expect (:failures @p-gx-started)))
        (is (= expect-humanize
               (map gx.errors/humanize (:failures @p-gx-started)))))))
+
+(def ^:export push-down-props-component
+  {:gx/props (gx/ref-keys [:a])
+   :gx/start {:gx/processor :props}
+   :gx/stop {:gx/processor :props
+             :gx/props (gx/ref :a)}})
+
+(deftest push-down-props-test
+  (let [graph {:a {:name "Lion El'Johnson"}
+               :c {:gx/component
+                   'k16.gx.beta.core-test/push-down-props-component}}
+        gx-map (gx/normalize {:graph graph
+                              :context context})
+        node-def (-> gx-map :graph :c)]
+    (testing "should push down props to signals without props"
+      (is (= (gx/ref-keys [:a])
+             (-> node-def :gx/start :gx/props))))
+    (testing "should use signal's own props if any"
+      (is (= (gx/ref :a)
+             (-> node-def :gx/stop :gx/props))))))
