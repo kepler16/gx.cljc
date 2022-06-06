@@ -186,63 +186,89 @@
                node-def)
     node-def))
 
+(defn resolve-component
+  "Resolve component by it's symbol and validate against malli schema"
+  [context component]
+  (when component
+    (binding [*err-ctx* (assoc *err-ctx*
+                               :error-type
+                               :normalize-node-component)]
+      (let [resolved (resolve-symbol component)
+            issues (gx.schema/validate-component context resolved)]
+        (cond
+          (not resolved)
+          (throw-gx-error "Component could not be resolved"
+                          {:component component})
+
+          issues
+          (throw-gx-error "Component schema error"
+                          {:component resolved
+                           :component-schema gx.schema/?SignalDefinition
+                           :schema-error (set issues)})
+
+          :else resolved)))))
+
 (defn normalize-node-def
   "Given a component definition, "
   [{:keys [context initial-graph]} node-key node-definition]
   (if (:gx/normalized? node-definition)
     node-definition
-    (let [{:keys [initial-state]} context
-          {:keys [auto-signal]} (:normalize context)
-          ;; set of signals defined in the graph
-          signals (set (keys (:signals context)))
-          ;; is this map a map based def, or a runnable form
-          def? (and (map? node-definition)
-                    (some (into #{} (concat signals [:gx/component]))
-                          (keys node-definition)))
-          with-pushed-down-form (if def?
-                                  node-definition
-                                  (->> (disj signals auto-signal)
-                                       (map (fn [other-signal]
-                                              [other-signal
-                                               {;; :value just passes value and
-                                                ;; supports state transitions of
-                                                ;; auto-components for all other signals
-                                                :gx/processor :value}]))
-                                       (into {auto-signal node-definition})))
-          component (some-> with-pushed-down-form :gx/component resolve-symbol)
-          ;; merge in component
-          ;; TODO support nested gx/component
-          ;; TODO support signal-mapping
-          with-component (impl/deep-merge
-                          component (dissoc with-pushed-down-form :gx/component))
-          normalized-def (merge
-                          (push-down-props context with-component)
-                          {:gx/state initial-state
-                           :gx/value nil})
+    (binding [*err-ctx* (->err-ctx
+                         {:error-type :normalize-node
+                          :node-key node-key
+                          :node-contents (node-key initial-graph)})]
+      (let [{:keys [initial-state]} context
+            {:keys [auto-signal]} (:normalize context)
+            ;; set of signals defined in the graph
+            signals (set (keys (:signals context)))
+            ;; is this map a map based def, or a runnable form
+            def? (and (map? node-definition)
+                      (some (into #{} (conj signals :gx/component))
+                            (keys node-definition)))
+            with-pushed-down-form
+            (if def?
+              node-definition
+              (->> (disj signals auto-signal)
+                   (map (fn [other-signal]
+                          [other-signal
+                           {;; :value just passes value and
+                            ;; supports state transitions of
+                            ;; auto-components for all other signals
+                            :gx/processor :value}]))
+                   (into {auto-signal node-definition})))
+            component (some->> with-pushed-down-form
+                               :gx/component
+                               (resolve-component context))
+           ;; merge in component
+           ;; TODO support nested gx/component
+           ;; TODO support signal-mapping
+            with-component (impl/deep-merge
+                            component (dissoc with-pushed-down-form
+                                              :gx/component))
+            normalized-def (merge
+                            (push-down-props context with-component)
+                            {:gx/state initial-state
+                             :gx/value nil})
 
-          signal-defs (select-keys normalized-def signals)
-          normalised-signal-defs
-          (binding [*err-ctx* (->err-ctx
-                               {:error-type :normalize-node
-                                :node-key node-key
-                                :node-contents (node-key initial-graph)})]
+            signal-defs (select-keys normalized-def signals)
+            normalised-signal-defs
             (->> signal-defs
                  (map (fn [[signal-key signal-def]]
                         [signal-key (normalize-signal-def signal-def)]))
-                 (into {})))]
-      (merge normalized-def
-             normalised-signal-defs
-           ;; Useful information, but lets consider semantics before
-           ;; using the value to determine behaviour
-             {:gx/type (if def? :component :static)
-              :gx/normalized? true}))))
+                 (into {}))]
+        (merge normalized-def
+               normalised-signal-defs
+               ;; Useful information, but lets consider semantics before
+               ;; using the value to determine behaviour
+               {:gx/type (if def? :component :static)
+                :gx/normalized? true})))))
 
 (defn normalize
   "Given a graph definition and config, return a normalised form. Idempotent.
    This acts as the static analysis step of the graph.
    Returns tuple of error explanation (if any) and normamized graph."
   [{:keys [context graph] :as gx-map}]
-  (let [config-issues (gx.schema/validate-graph-config context)
+  (let [config-issues (gx.schema/validate-context context)
         ;; remove previous normalization errors
         gx-map' (cond-> gx-map
                   (not (:initial-graph gx-map)) (assoc :initial-graph graph)
@@ -328,7 +354,7 @@
       (->gx-error-data "Props validation error"
                        {:props-value props
                         :props-schema schema
-                        :shema-error (me/humanize error)}))))
+                        :schema-error (me/humanize error)}))))
 
 (defn- run-props-fn
   [props-fn arg-map]
@@ -388,9 +414,9 @@
         ;; => ignore signal, return node
 
         (or ;; signal isn't defined for this state transition
-            (not (contains? from-states node-state))
+         (not (contains? from-states node-state))
             ;; node is already in to-state
-            (= node-state to-state))
+         (= node-state to-state))
         node
 
         (seq failed-dep-node-keys)

@@ -66,10 +66,9 @@
   [{:keys [internal-data] :as error}]
   (str (humanize-error error)
        (when-let [{:keys [ex-message args dep-node-keys]} internal-data]
-         (str ", "
-          (tokenize "error = " ex-message
-                    "args = " args
-                    "deps-nodes = " dep-node-keys)))))
+         (str ", " (tokenize "error = " ex-message
+                             "args = " args
+                             "deps-nodes = " dep-node-keys)))))
 
 (comment
   (map humanize
@@ -97,8 +96,8 @@
 (defmethod humanize :props-validation
   [{:keys [internal-data] :as error}]
   (str (humanize-error error)
-       (when-let [{:keys [shema-error]} internal-data]
-         (str ", " (tokenize "shema-error = " shema-error)))))
+       (when-let [{:keys [schema-error]} internal-data]
+         (str ", " (tokenize "schema-error = " schema-error)))))
 
 (comment
   (humanize {:error-type :props-validation,
@@ -113,4 +112,4 @@
                             :last-name "Doe",
                             :full-name "John Doe"},
               :props-schema [:map [:foo string?]],
-              :shema-error {:foo ["missing required key"]}}}))
+              :schema-error {:foo ["missing required key"]}}}))
