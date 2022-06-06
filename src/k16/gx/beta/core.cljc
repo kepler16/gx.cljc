@@ -174,6 +174,18 @@
                     :gx/deps env})))]
     with-resolved-props))
 
+(defn push-down-props
+  [{{:keys [props-signals]} :normalize} {:gx/keys [props] :as node-def}]
+  (if (and (seq props) (seq props-signals))
+    (reduce-kv (fn [m k v]
+                 (if (and (contains? props-signals k)
+                          (not (:gx/props v)))
+                   (assoc-in m [k :gx/props] props)
+                   m))
+               node-def
+               node-def)
+    node-def))
+
 (defn normalize-node-def
   "Given a component definition, "
   [{:keys [context initial-graph]} node-key node-definition]
@@ -195,10 +207,7 @@
                                                {;; :value just passes value and
                                                 ;; supports state transitions of
                                                 ;; auto-components for all other signals
-                                                :gx/processor :value
-                                                ;; TODO update signal processing
-                                                ;; to accept nil props
-                                                :gx/resolved-props {}}]))
+                                                :gx/processor :value}]))
                                        (into {auto-signal node-definition})))
           component (some-> with-pushed-down-form :gx/component resolve-symbol)
           ;; merge in component
@@ -207,9 +216,10 @@
           with-component (impl/deep-merge
                           component (dissoc with-pushed-down-form :gx/component))
           normalized-def (merge
-                          with-component
+                          (push-down-props context with-component)
                           {:gx/state initial-state
                            :gx/value nil})
+
           signal-defs (select-keys normalized-def signals)
           normalised-signal-defs
           (binding [*err-ctx* (->err-ctx
