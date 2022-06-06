@@ -56,9 +56,9 @@
 
 (def default-context
   {:initial-state :uninitialised
-   :normalize {:auto-signal :gx/start
-               ;; TODO implement pushdown-props
-               :props-signal #{:gx/start :gx/stop :gx/pause}}
+   :normalize {;; signal, whish is default for static component nodes
+               :auto-signal :gx/start
+               :props-signals #{:gx/start :gx/stop}}
    :signal-mapping {}
    :signals {:gx/start {:order :topological
                         :from-states #{:stopped :uninitialised}
@@ -370,7 +370,7 @@
         dep-nodes-vals (system-value {:graph dep-nodes})
         failed-dep-node-keys (->> {:graph dep-nodes}
                                   (system-failure)
-                                  (filter (fn [[_ v]] v))
+                                  (filter second)
                                   (map first))]
     (binding [*err-ctx* (assoc *err-ctx* :node-contents (node-key initial-graph))]
       (cond

@@ -39,44 +39,37 @@
 (defn load-config []
   (gx.reg/load-graph! "test/fixtures/graph.edn"))
 
-(def context
-  {:signals {:gx/start {:order :topological
-                        :from-states #{:stopped gx/INITIAL_STATE}
-                        :to-state :started}
-             :gx/stop {:order :reverse-topological
-                       :from-states #{:started}
-                       :to-state :stopped
-                       :deps-from :gx/start}}})
+(def context gx/default-context)
 
 (deftest graph-tests
   (let [run-checks
         (fn [gx-started gx-stopped]
           (testing "graph should start correctly"
-            (is (= (gx/system-state gx-started)
-                   {:a :started, :z :started, :y :started,
-                    :b :started :c :started :x :started})
+            (is (= {:a :started, :z :started, :y :started,
+                    :b :started :c :started :x :started}
+                   (gx/system-state gx-started))
                 "all nodes should be started")
-            (is (= (dissoc (gx/system-value gx-started) :c :x)
-                   {:a {:nested-a 1}, :z 1, :y nil, :b 3}))
+            (is (= {:a {:nested-a 1}, :z 1, :y nil, :b 3}
+                   (dissoc (gx/system-value gx-started) :c :x)))
 
-            (is (= @(:c (gx/system-value gx-started))
-                   {:nested-a 1, :nested-a-x2 2}))
+            (is (= {:nested-a 1, :nested-a-x2 2}
+                   @(:c (gx/system-value gx-started))))
 
-            (is (= @(:x (gx/system-value gx-started))
-                   {:nested-a 1, :some-value 3})))
+            (is (= {:nested-a 1, :some-value 3}
+                   @(:x (gx/system-value gx-started)))))
 
           (testing "graph should stop correctly, nodes without signal handler
-                    should not change state and value"
-            (is (= (gx/system-state gx-stopped)
-                   {:a :started,
-                    :z :started,
-                    :y :started,
+                    should not change value but state"
+            (is (= {:a :stopped
+                    :z :stopped
+                    :y :stopped
                     :b :stopped,
                     :c :stopped,
-                    :x :stopped})
+                    :x :stopped}
+                   (gx/system-state gx-stopped))
                 "all nodes should be stopped")
-            (is (= (gx/system-value gx-stopped)
-                   {:a {:nested-a 1}, :z 1, :y nil, :b nil :c nil :x nil}))))
+            (is (= {:a {:nested-a 1}, :z 1, :y nil, :b nil :c nil :x nil}
+                   (gx/system-value gx-stopped)))))
         graph (load-config)
         gx-map (gx/normalize {:context context
                               :graph graph})]
@@ -87,11 +80,11 @@
         (m/explain gx.schema/?NormalizedGraphDefinition (:graph gx-map)))))
 
     (testing "topo sorting"
-      (is (= (second (gx/topo-sort gx-map :gx/start))
-             '(:a :z :y :b :c :x))
+      (is (= '(:a :z :y :b :c :x)
+             (second (gx/topo-sort gx-map :gx/start)))
           "should be topologically")
-      (is (= (second (gx/topo-sort gx-map :gx/stop))
-             '(:x :c :b :y :z :a))
+      (is (= '(:x :c :b :y :z :a)
+             (second (gx/topo-sort gx-map :gx/stop)))
           "should be reverse-topologically"))
 
     #?(:clj (let [gx-started @(gx/signal gx-map :gx/start)
@@ -106,7 +99,10 @@
                 (done))))))
 
 (deftest failed-normalization-test
-  (let [custom-context {:signals
+  (let [custom-context {:initial-state :uninitialised
+                        :normalize {:auto-signal :custom/start
+                                    :props-signals #{:custom/start}}
+                        :signals
                         {:custom/start {:order :topological
                                         :from-states #{:stopped :uninitialized}
                                         :to-state :started}
@@ -138,17 +134,17 @@
 
 (deftest component-support-test
   (let [run-checks (fn [gx-started gx-stopped]
-                     (is (= (gx/system-state gx-started)
-                            {:a :started, :c :started}))
-                     (is (= (:a (gx/system-value gx-started))
-                            {:nested-a 1}))
-                     (is (= @(:c (gx/system-value gx-started))
-                            {:nested-a 1, :nested-a-x2 2}))
+                     (is (= {:a :started, :c :started}
+                            (gx/system-state gx-started)))
+                     (is (= {:nested-a 1}
+                            (:a (gx/system-value gx-started))))
+                     (is (= {:nested-a 1, :nested-a-x2 2}
+                            @(:c (gx/system-value gx-started))))
 
-                     (is (= (gx/system-state gx-stopped)
-                            {:a :started, :c :stopped}))
-                     (is (= (gx/system-value gx-stopped)
-                            {:a {:nested-a 1} :c nil})))
+                     (is (= {:a :stopped, :c :stopped}
+                            (gx/system-state gx-stopped)))
+                     (is (= {:a {:nested-a 1} :c nil}
+                            (gx/system-value gx-stopped))))
         graph {:a {:nested-a 1}
                :c {:gx/component 'k16.gx.beta.core-test/test-component}}
         gx-map (gx/normalize {:context context
@@ -228,12 +224,8 @@
     (t/are [arg result] (= result (gx/postwalk-evaluate env arg))
       (gx/ref :http/server) {:port 8080}
 
-      (gx/ref-map :http/server) #:http{:server {:port 8080}}
-
-      (gx/ref-path :http/server :port) 8080
-
-      (gx/ref-maps :http/server :db/url) {:http/server {:port 8080}
-                                          :db/url "jdbc://foo/bar/baz"})))
+      (gx/ref-keys [:http/server :db/url]) {:http/server {:port 8080}
+                                            :db/url "jdbc://foo/bar/baz"})))
 
 #?(:cljs
    (deftest globaly-registered-components-test
