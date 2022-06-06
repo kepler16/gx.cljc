@@ -21,23 +21,24 @@
        (apply str)))
 
 (defn humanize-error
-  [{:keys [node-key signal-key message]}]
-  (str (or message "Error") ": "
-       (tokenize "node = " node-key
-                 "signal = " signal-key)))
+  [{:keys [node-key signal-key message]} & rest-of-error]
+  (apply str (concat [(or message "Error") ": "
+                      (tokenize "node = " node-key
+                                "signal = " signal-key)]
+                     (when rest-of-error
+                       (conj rest-of-error ", ")))))
 
 (defmulti humanize :error-type)
 
 (defmethod humanize :general
- [error]
- (humanize-error error))
+  [error]
+  (humanize-error error))
 
 (defmethod humanize :normalize-node
   [{:keys [internal-data] :as error}]
-  (str (humanize-error error) ", "
-       (tokenize
-        "form = " (:form-def internal-data)
-        "token = " (:token internal-data))))
+  (humanize-error error (tokenize
+                         "form = " (:form-def internal-data)
+                         "token = " (:token internal-data))))
 
 (comment
   (humanize
@@ -51,9 +52,8 @@
 
 (defmethod humanize :deps-sort
   [{:keys [internal-data] :as error}]
-  (str (humanize-error error)
-       (when-let [errors (:errors internal-data)]
-         (apply str (conj (interpose ", " errors) ", ")))))
+  (humanize-error error (when-let [errors (:errors internal-data)]
+                          (apply str (conj (interpose ", " errors) ", ")))))
 
 (comment
   (humanize {:internal-data
@@ -64,11 +64,11 @@
 
 (defmethod humanize :node-signal
   [{:keys [internal-data] :as error}]
-  (str (humanize-error error)
-       (when-let [{:keys [ex-message args dep-node-keys]} internal-data]
-         (str ", " (tokenize "error = " ex-message
-                             "args = " args
-                             "deps-nodes = " dep-node-keys)))))
+  (humanize-error
+   error (when-let [{:keys [ex-message args dep-node-keys]} internal-data]
+           (tokenize "error = " ex-message
+                     "args = " args
+                     "deps-nodes = " dep-node-keys))))
 
 (comment
   (map humanize
@@ -95,9 +95,9 @@
 
 (defmethod humanize :props-validation
   [{:keys [internal-data] :as error}]
-  (str (humanize-error error)
-       (when-let [{:keys [schema-error]} internal-data]
-         (str ", " (tokenize "schema-error = " schema-error)))))
+  (humanize-error
+   error (when-let [{:keys [schema-error]} internal-data]
+           (tokenize "schema-error = " schema-error))))
 
 (comment
   (humanize {:error-type :props-validation,
@@ -116,20 +116,19 @@
 
 (defmethod humanize :normalize-node-component
   [{:keys [internal-data] :as error}]
-  (str (humanize-error error)
-       (tokenize "gx/component = " (:component internal-data)
-                 "schema-error = " (:schema-error internal-data))))
+  (humanize-error
+   error (tokenize "gx/component = " (:component internal-data)
+                   "schema-error = " (:schema-error internal-data))))
 
 (comment
   (humanize {:message "Component schema error",
              :error-type :normalize-node-component,
+             :node-key :c,
+             :node-contents
+             #:gx{:component 'k16.gx.beta.core-test/invalid-component-2},
              :internal-data
-             {:component get,
-              :component-schema
-              [:or [:map {:closed true}
-                    [:gx/props {:optional true}
-                     [:map-of keyword? any?]]]
-               [:map-of keyword?
-                [:map {:closed true} [:gx/processor ifn?]
-                 [:gx/props {:optional true} [:map-of keyword? any?]]]]],
-              :schema-error #{"invalid type"}}}))
+             {:component #:gx{:start #:gx{:processor "non callable val"}}
+              :component-schema [:map-of keyword?]
+              :schema-error
+              #{[:gx/start
+                 #:gx{:processor ["should be an fn" "should be a keyword"]}]}}}))
