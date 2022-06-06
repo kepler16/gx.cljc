@@ -13,7 +13,7 @@
                   (namespace x)
                   (not= "gx" (namespace x)))
          (swap! syms* conj x)
-       x))
+         x))
      graph)
     @syms*))
 

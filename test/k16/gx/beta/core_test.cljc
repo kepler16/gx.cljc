@@ -3,8 +3,6 @@
             [k16.gx.beta.registry :as gx.reg :include-macros true]
             [k16.gx.beta.schema :as gx.schema]
             [k16.gx.beta.errors :as gx.errors]
-            [malli.core :as m]
-            [malli.error :as me]
             #?(:clj [clojure.test :as t :refer [deftest is testing]])
             #?@(:cljs [[cljs.test :as t :refer-macros [deftest is testing]]
                        [promesa.core :as p]
@@ -345,7 +343,7 @@
           (is (= {:internal-data
                   {:props-value {:name "John", :last-name "Doe", :full-name "John Doe"},
                    :props-schema [:map [:foo string?]],
-                   :shema-error {:foo ["missing required key"]}},
+                   :schema-error {:foo ["missing required key"]}},
                   :message "Props validation error",
                   :error-type :props-validation,
                   :node-key :comp,
