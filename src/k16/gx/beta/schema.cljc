@@ -44,25 +44,5 @@
     [:gx/value any?]]
    ?ComponentDefinition))
 
-(def ?GraphDefinition
-  [:map-of keyword? [:or
-                     nil?
-                     keyword?
-                     number?
-                     string?
-                     boolean?
-                     map?
-                     seq?
-                     [:map [:gx/component symbol?]]
-                     ?NodeDefinition]])
-
-(def graph-definition-explainer (m/explainer ?GraphDefinition))
-
-(defn validate-graph
-  "Check graph definition for errors,
-   returns humanized explanation (if any errors)"
-  [graph-definition]
-  (-> graph-definition (graph-definition-explainer) (me/humanize)))
-
 (def ?NormalizedGraphDefinition
   [:map-of keyword? ?NodeDefinition])

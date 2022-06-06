@@ -227,22 +227,19 @@
              {:gx/type (if def? :component :static)
               :gx/normalized? true}))))
 
-;; - any state should have only one signal to transition from it
 (defn normalize
   "Given a graph definition and config, return a normalised form. Idempotent.
    This acts as the static analysis step of the graph.
    Returns tuple of error explanation (if any) and normamized graph."
   [{:keys [context graph] :as gx-map}]
-  (let [;;graph-issues (gx.schema/validate-graph graph)
-        config-issues (gx.schema/validate-graph-config context)
+  (let [config-issues (gx.schema/validate-graph-config context)
         ;; remove previous normalization errors
         gx-map' (cond-> gx-map
                   (not (:initial-graph gx-map)) (assoc :initial-graph graph)
                   :always (dissoc :failures))]
     (try
       (cond
-        config-issues (throw (ex-info "Graph config error" config-issues))
-        ;;graph-issues (throw (ex-info "Graph definition error", graph-issues))
+        config-issues (throw (ex-info "GX Context error" config-issues))
         :else (->> graph
                    (map (fn [[k v]]
                           [k (normalize-node-def gx-map' k v)]))
