@@ -46,6 +46,7 @@
   [:map
    ;; top level props
    gx-props
+   [:gx/component any?]
    [:gx/signal-mapping {:optional true} [:map-of keyword? keyword?]]
    [:gx/state {:optional true} keyword?]
    [:gx/failure {:optional true} any?]
