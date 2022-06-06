@@ -186,6 +186,42 @@
                node-def)
     node-def))
 
+(defn remap-signals
+  [from-signals to-signals]
+  (cond
+    (and (seq from-signals) (seq to-signals))
+    (if from-signals
+      (->> to-signals
+           (map (fn [[k v]]
+                  [k (v from-signals)]))
+           (into {}))
+      to-signals)
+
+    (seq from-signals) from-signals
+
+    :else to-signals))
+
+(defn flatten-component
+  "Flattens nested components by creating one root component using
+   signal mappings from context (if any)"
+  [context component]
+  (let [root (assoc component
+                    :gx/signal-mapping
+                    (or
+                     (:gx/signal-mapping component)
+                     (:signal-mapping context)))]
+    root
+    (loop [{:gx/keys [component signal-mapping] :as current} root]
+      (if-let [nested component]
+        (recur (update nested :gx/signal-mapping
+                       #(remap-signals % signal-mapping)))
+        (if-let [mapping (seq (:gx/signal-mapping current))]
+          (->> mapping
+               (map (fn [[k v]]
+                      [k (get current v)]))
+               (into {}))
+          (dissoc current :gx/signal-mapping))))))
+
 (defn resolve-component
   "Resolve component by it's symbol and validate against malli schema"
   [context component]
@@ -193,8 +229,11 @@
     (binding [*err-ctx* (assoc *err-ctx*
                                :error-type
                                :normalize-node-component)]
-      (let [resolved (resolve-symbol component)
-            issues (gx.schema/validate-component context resolved)]
+      (let [resolved (some->> component
+                              (resolve-symbol)
+                              (flatten-component context))
+            [issues schema] (when resolved
+                              (gx.schema/validate-component context resolved))]
         (cond
           (not resolved)
           (throw-gx-error "Component could not be resolved"
@@ -203,7 +242,7 @@
           issues
           (throw-gx-error "Component schema error"
                           {:component resolved
-                           :component-schema gx.schema/?SignalDefinition
+                           :component-schema schema
                            :schema-error (set issues)})
 
           :else resolved)))))
