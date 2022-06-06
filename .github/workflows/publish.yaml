@@ -32,6 +32,7 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
 
+
       - uses: s4u/maven-settings-action@v2.4.1
         with:
           servers: |
