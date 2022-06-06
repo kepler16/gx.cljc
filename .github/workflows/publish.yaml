@@ -39,6 +39,8 @@ jobs:
               "username": "GITHUB",
               "password": "${{secrets.GITHUB_TOKEN}}"}]
 
+      - uses: extractions/setup-just@v1
+
       - uses: DeLaGuardo/setup-clojure@3.7
         with:
           cli: latest
