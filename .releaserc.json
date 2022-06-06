@@ -8,8 +8,8 @@
     [
       "@semantic-release/exec",
       {
-        "prepareCmd" : "clojure -T:build release-prepare :version '\"${nextRelease.version}\"'",
-        "publishCmd" : "clojure -T:build release-publish :version '\"${nextRelease.version}\"'"
+        "prepareCmd" : "VERSION=${nextRelease.version} just build",
+        "publishCmd" : "VERSION=${nextRelease.version} just release"
       }
     ],
     [
