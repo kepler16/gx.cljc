@@ -5,9 +5,7 @@
             [k16.gx.beta.schema :as gx.schema]
             [malli.core :as m]
             [malli.error :as me]
-            [promesa.core :as p]
-            [clojure.set :as set]
-            [k16.gx.beta.core :as gx])
+            [promesa.core :as p])
   (:import #?(:clj [clojure.lang ExceptionInfo])))
 
 (defrecord ErrorContext [error-type node-key node-contents signal-key])
