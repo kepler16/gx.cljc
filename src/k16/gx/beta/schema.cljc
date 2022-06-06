@@ -23,39 +23,55 @@
    [:signals
     [:map-of keyword? ?SignalConfig]]])
 
-(def graph-config-explainer (m/explainer ?Context))
+(def explain-context (m/explainer ?Context))
 
-(defn validate-graph-config
+(defn validate-context
   "Check graph config for errors,
    returns humanized explanation (if any errors)"
-  [graph-config]
-  (-> graph-config (graph-config-explainer) (me/humanize)))
+  [context]
+  (-> context (explain-context) (me/humanize)))
+
+(def gx-props [:gx/props {:optional true} coll?])
 
 (def ?SignalDefinition
-  [:map {:closed true}
-   [:gx/processor ifn?]
-   ;; push-down props
-   [:gx/props {:optional true} [:map-of keyword? any?]]])
+  [:map
+   ;; pushed-down props
+   gx-props
+   [:gx/processor [:or fn? keyword?]]
+   [:gx/props-schema {:optional true} any?]
+   [:gx/resolved-props-fn {:optional true} [:maybe fn?]]
+   [:gx/deps {:optional true} coll?]
+   [:gx/resolved-props {:optional true} [:maybe any?]]])
 
-(def ?ComponentDefinition
-  (mu/union
-   [:map {:closed true} [:gx/props {:optional true} [:map-of keyword? any?]]]
-   [:map-of keyword? ?SignalDefinition]))
+(def ?NormalizedNodeDefinition
+  [:map
+   ;; top level props
+   gx-props
+   [:gx/state {:optional true} keyword?]
+   [:gx/failure {:optional true} any?]
+   [:gx/type {:optional true} keyword?]
+   [:gx/normalized? {:optional true} boolean?]
+   [:gx/value {:optional true} any?]])
 
-(m/explain ?ComponentDefinition
-           {:gx/start {:gx/processor 1}
-            :gx/props {:foo 1}})
+(defn create-component-schema
+  [context]
+  (let [signals (->> context
+                     :signals
+                     (keys)
+                     (mapv (fn [sig-key]
+                             [sig-key {:optional true} ?SignalDefinition]))
+                     (into [:map {:open true}]))]
+    (mu/closed-schema
+     (mu/merge ?NormalizedNodeDefinition signals))))
 
-(def ?NodeDefinition
-  (mu/union
-   [:map
-    ;; TODO some cool stuff in the future (c) Alexis
-    ;; [:gx/vars map?]
-    [:gx/prev-state {:optional true} keyword?]
-    [:gx/state keyword?]
-    [:gx/failure {:optional true} any?]
-    [:gx/value any?]]
-   ?ComponentDefinition))
+(defn validate-component
+  [context component]
+  (->> component
+       (m/explain (create-component-schema context))
+       (me/humanize)))
 
-(def ?NormalizedGraphDefinition
-  [:map-of keyword? ?NodeDefinition])
+(defn validate-graph
+  [{:keys [graph context]}]
+  (let [graph-schema [:map-of keyword? (create-component-schema context)]]
+    (me/humanize
+     (m/explain graph-schema graph))))
