@@ -4,6 +4,20 @@
 
 (defonce registry* (atom {}))
 
+(defn reset-node
+  "Override normalized graph's node from :initial-graph, it's used when
+   node's component changes it's internals. new-contents - is optional argment
+   which is taken over value of :initial-graph. Does nothig if normalized
+   graph doesn't have a node-key."
+  ([gx-map node-key]
+   (reset-node gx-map node-key nil))
+  ([gx-map node-key new-contents]
+   (if (node-key (:graph gx-map))
+     (assoc-in gx-map
+               [:graph node-key]
+               (or new-contents (-> gx-map :initial-graph node-key)))
+     gx-map)))
+
 (defn node-props
   [{:keys [graph]} property-key]
   (let [[comps static]
