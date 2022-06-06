@@ -396,9 +396,6 @@
                                   (map first))]
     (binding [*err-ctx* (assoc *err-ctx* :node-contents (node-key initial-graph))]
       (cond
-        ;; Signal is not called more than once or node-state != from-states
-        ;; => ignore signal, return node
-
         (or ;; signal isn't defined for this state transition
          (not (contains? from-states node-state))
             ;; node is already in to-state
