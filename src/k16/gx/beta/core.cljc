@@ -39,7 +39,7 @@
        (filter (fn [[_ v]] v))
        (into {:message (ex-message ex)})))
 
-(def locals #{'gx/ref 'gx/ref-maps 'gx/ref-map 'gx/ref-path 'gx/ref-env})
+(def locals #{'gx/ref 'gx/ref-keys})
 
 ;; local forms which create deps between graph nodes
 (def deps-locals (disj locals 'gx/ref-env))
@@ -81,45 +81,16 @@
   [key]
   (list 'gx/ref key))
 
-;; TODO remove this
-(defn ref-map
-  [key]
-  (list 'gx/ref-map key))
-
-;; TODO rename to (ref-keys [:key]) and should accept vector
-(defn ref-maps
+(defn ref-keys
   [& keys]
-  (apply list (conj keys 'gx/ref-maps)))
-
-;; TODO remove this
-(defn ref-path
-  [& keys]
-  (apply list (conj keys 'gx/ref-path)))
-
-
-#?(:clj
-   (defn get-enviromnent-var
-     [form]
-     (if (nil? (second form))
-       (throw-gx-error "Ref error: environment variable name is nil"
-                       {:token form})
-       (System/getenv (str (second form))))))
+  (apply list (conj keys 'gx/ref-keys)))
 
 (defn parse-local
   [env form]
   (condp = (first form)
     'gx/ref (get env (second form))
 
-    'gx/ref-map {(second form) (get env (second form))}
-
-    'gx/ref-maps (select-keys env (rest form))
-
-    'gx/ref-path (get-in env [(second form) (nth form 2)])
-
-    ;; TODO remove this
-    'gx/ref-env #?(:clj (get-enviromnent-var form)
-                   ;; TODO add cljs get env
-                   :cljs nil)))
+    'gx/ref-keys (select-keys env (second form))))
 
 (defn postwalk-evaluate
   "A postwalk runtime signal processor evaluator, works most of the time.
@@ -150,7 +121,7 @@
                   (locals sub-form) sub-form
 
                   (deps-form? sub-form)
-                  (do (swap! props* concat (rest sub-form))
+                  (do (swap! props* concat (-> sub-form rest flatten))
                       sub-form)
 
                   (local-form? sub-form) sub-form
