@@ -113,3 +113,23 @@
                             :full-name "John Doe"},
               :props-schema [:map [:foo string?]],
               :schema-error {:foo ["missing required key"]}}}))
+
+(defmethod humanize :normalize-node-component
+  [{:keys [internal-data] :as error}]
+  (str (humanize-error error)
+       (tokenize "gx/component = " (:component internal-data)
+                 "schema-error = " (:schema-error internal-data))))
+
+(comment
+  (humanize {:message "Component schema error",
+             :error-type :normalize-node-component,
+             :internal-data
+             {:component get,
+              :component-schema
+              [:or [:map {:closed true}
+                    [:gx/props {:optional true}
+                     [:map-of keyword? any?]]]
+               [:map-of keyword?
+                [:map {:closed true} [:gx/processor ifn?]
+                 [:gx/props {:optional true} [:map-of keyword? any?]]]]],
+              :schema-error #{"invalid type"}}}))

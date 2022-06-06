@@ -39,6 +39,13 @@
 
 (def context gx/default-context)
 
+(comment
+  (let [graph (load-config)
+        gx-map (gx/normalize {:context context
+                              :graph graph})]
+    (gx.schema/validate-graph gx-map))
+  )
+
 (deftest graph-tests
   (let [run-checks
         (fn [gx-started gx-stopped]
@@ -72,10 +79,8 @@
         gx-map (gx/normalize {:context context
                               :graph graph})]
     (testing "normalization structure should be valid"
-      (is
-       (m/validate gx.schema/?NormalizedGraphDefinition (:graph gx-map))
-       (me/humanize
-        (m/explain gx.schema/?NormalizedGraphDefinition (:graph gx-map)))))
+      (is (nil? (gx.schema/validate-graph gx-map))
+          (gx.schema/validate-graph gx-map)))
 
     (testing "topo sorting"
       (is (= '(:a :z :y :b :c :x)
@@ -123,12 +128,7 @@
             :message "Special forms are not supported",
             :internal-data
             {:form-def '(throw (ex-info "foo" (gx/ref :a))), :token 'throw}}
-           failure))
-
-    (is (= (str "Special forms are not supported: node = ':d', "
-                "form = '(throw (ex-info \"foo\" (gx/ref :a)))', "
-                "token = 'throw'")
-           (gx.errors/humanize failure)))))
+           failure))))
 
 (deftest component-support-test
   (let [run-checks (fn [gx-started gx-stopped]
@@ -184,11 +184,7 @@
             :message "Dependency errors",
             :error-type :deps-sort,
             :signal-key :gx/start}
-           failure))
-    (is (= (str "Dependency errors: signal = ':gx/start', "
-                ":c depends on :z, but :z doesn't exist, "
-                "circular :a -> :b -> :a")
-           (gx.errors/humanize failure)))))
+           failure))))
 
 (defn my-props-fn
   [{:keys [a]}]
@@ -275,11 +271,7 @@
               :internal-data
               {:form-def '(some-not-found-symbol "stopping"),
                :token 'some-not-found-symbol}}
-             failure))
-      (is (= (str "Unable to resolve symbol: node = ':b', "
-                  "form = '(some-not-found-symbol \"stopping\")', "
-                  "token = 'some-not-found-symbol'")
-             (gx.errors/humanize failure)))))
+             failure))))
 
   #?(:clj
      (testing "processor failure"
@@ -314,20 +306,8 @@
                            :node-key :c,
                            :node-contents '(inc :bar),
                            :signal-key :gx/start})
-             expect-humanized
-             [(str
-               "Signal processor error: node = ':b', signal = ':gx/start', "
-               "error = 'Divide by zero', args = '{:props {:z 1}, :value nil}'")
-              (str
-               "Signal processor error: node = ':c', signal = ':gx/start', "
-               "error = 'class clojure.lang.Keyword cannot be cast to class "
-               "java.lang.Number (clojure.lang.Keyword is in unnamed module "
-               "of loader 'app'; java.lang.Number is in module java.base of "
-               "loader 'bootstrap')', args = '{:props {}, :value nil}'")]
              p-gx-started (gx/signal gx-norm :gx/start)]
-         (is (= expect (:failures @p-gx-started)))
-         (is (= expect-humanized
-                (map gx.errors/humanize (:failures @p-gx-started))))))))
+         (is (= expect (:failures @p-gx-started)))))))
 
 (def props-validation-component
   {:gx/start {:gx/props (gx/ref :a)
@@ -351,11 +331,7 @@
                   #:gx{:component 'k16.gx.beta.core-test/props-validation-component,
                        :start #:gx{:props-fn 'k16.gx.beta.core-test/my-props-fn}},
                   :signal-key :gx/start}
-                 (first (:failures gx-started))))
-          (is (= (str "Props validation error: node = ':comp', signal = "
-                      "':gx/start', shema-error = '{:foo [\"missing "
-                      "required key\"]}'")
-                 (gx.errors/humanize (first (:failures gx-started))))))
+                 (first (:failures gx-started)))))
         graph (gx.reg/load-graph! "test/fixtures/props_validation.edn")
         gx-map {:context context :graph graph}
         gx-started (gx/signal gx-map :gx/start)]
@@ -392,20 +368,8 @@
                          :node-key :b,
                          :node-contents '(/ (gx/ref :a) 0),
                          :signal-key :gx/start})
-           expect-humanize
-           [(str
-             "Failure in dependencies: node = ':d', signal = ':gx/start', "
-             "deps-nodes = '(:c)'")
-            (str
-             "Failure in dependencies: node = ':c', signal = ':gx/start', "
-             "deps-nodes = '(:b)'")
-            (str
-             "Signal processor error: node = ':b', signal = ':gx/start', "
-             "error = 'Divide by zero', args = '{:props {:a 1}, :value nil}'")]
            p-gx-started (gx/signal gx-map :gx/start)]
-       (is (= expect (:failures @p-gx-started)))
-       (is (= expect-humanize
-              (map gx.errors/humanize (:failures @p-gx-started)))))))
+       (is (= expect (:failures @p-gx-started))))))
 
 (def ^:export push-down-props-component
   {:gx/props (gx/ref-keys [:a])
@@ -426,3 +390,53 @@
     (testing "should use signal's own props if any"
       (is (= (gx/ref :a)
              (-> node-def :gx/stop :gx/props))))))
+
+(def ^:export invalid-component
+  {:some "invalid component"})
+
+(def ^:export invalid-component-2
+  {:gx/start {:gx/processor "non callable val"}})
+
+(deftest component-processor-unresolved-test
+  (testing "should resolve all components during normalization stage"
+    (let [graph {:c {:gx/component 'k16.gx.beta.core-test/non-existent}}
+          gx-map (gx/normalize {:graph graph
+                                :context context})]
+      (is (= {:message "Component could not be resolved",
+              :error-type :normalize-node-component,
+              :node-key :c,
+              :node-contents
+              #:gx{:component 'k16.gx.beta.core-test/non-existent}
+              :internal-data
+              {:component 'k16.gx.beta.core-test/non-existent}}
+             (first (:failures gx-map)))))
+
+    (let [graph {:c {:gx/component 'k16.gx.beta.core-test/invalid-component}}
+          gx-map (gx/normalize {:graph graph
+                                :context context})]
+      (is (= {:message "Component schema error",
+              :error-type :normalize-node-component,
+              :node-key :c,
+              :node-contents
+              #:gx{:component 'k16.gx.beta.core-test/invalid-component}
+              :internal-data
+              {:component {:some "invalid component"}
+               :component-schema gx.schema/?SignalDefinition
+               :schema-error #{[:some ["disallowed key"]]}}}
+             (first (:failures gx-map)))))
+
+    (let [graph {:c {:gx/component 'k16.gx.beta.core-test/invalid-component-2}}
+          gx-map (gx/normalize {:graph graph
+                                :context context})]
+      (is (= {:message "Component schema error",
+              :error-type :normalize-node-component,
+              :node-key :c,
+              :node-contents
+              #:gx{:component 'k16.gx.beta.core-test/invalid-component-2},
+              :internal-data
+              {:component #:gx{:start #:gx{:processor "non callable val"}}
+               :component-schema gx.schema/?SignalDefinition
+               :schema-error
+               #{[:gx/start
+                  #:gx{:processor ["should be an fn" "should be a keyword"]}]}}}
+             (-> gx-map :failures first))))))
