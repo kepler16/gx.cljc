@@ -35,7 +35,6 @@
 
 (def ?SignalDefinition
   [:map
-   ;; pushed-down props
    gx-props
    [:gx/processor [:or fn? keyword?]]
    [:gx/props-schema {:optional true} any?]
@@ -47,6 +46,7 @@
   [:map
    ;; top level props
    gx-props
+   [:gx/signal-mapping {:optional true} [:map-of keyword? keyword?]]
    [:gx/state {:optional true} keyword?]
    [:gx/failure {:optional true} any?]
    [:gx/type {:optional true} keyword?]
@@ -66,9 +66,11 @@
 
 (defn validate-component
   [context component]
-  (->> component
-       (m/explain (create-component-schema context))
-       (me/humanize)))
+  (let [schema (create-component-schema context)]
+    [(->> component
+          (m/explain schema)
+          (me/humanize))
+     (m/-form schema)]))
 
 (defn validate-graph
   [{:keys [graph context]}]

@@ -2,7 +2,6 @@
   (:require [k16.gx.beta.core :as gx]
             [k16.gx.beta.registry :as gx.reg :include-macros true]
             [k16.gx.beta.schema :as gx.schema]
-            [k16.gx.beta.errors :as gx.errors]
             #?(:clj [clojure.test :as t :refer [deftest is testing]])
             #?@(:cljs [[cljs.test :as t :refer-macros [deftest is testing]]
                        [promesa.core :as p]
@@ -421,9 +420,11 @@
               #:gx{:component 'k16.gx.beta.core-test/invalid-component}
               :internal-data
               {:component {:some "invalid component"}
-               :component-schema gx.schema/?SignalDefinition
                :schema-error #{[:some ["disallowed key"]]}}}
-             (first (:failures gx-map)))))
+             (-> gx-map
+                 :failures
+                 first
+                 (update :internal-data dissoc :component-schema)))))
 
     (let [graph {:c {:gx/component 'k16.gx.beta.core-test/invalid-component-2}}
           gx-map (gx/normalize {:graph graph
@@ -435,8 +436,10 @@
               #:gx{:component 'k16.gx.beta.core-test/invalid-component-2},
               :internal-data
               {:component #:gx{:start #:gx{:processor "non callable val"}}
-               :component-schema gx.schema/?SignalDefinition
                :schema-error
                #{[:gx/start
                   #:gx{:processor ["should be an fn" "should be a keyword"]}]}}}
-             (-> gx-map :failures first))))))
+             (-> gx-map
+                 :failures
+                 first
+                 (update :internal-data dissoc :component-schema)))))))
