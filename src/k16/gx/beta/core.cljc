@@ -204,14 +204,13 @@
 (defn flatten-component
   "Flattens nested components by creating one root component using
    signal mappings from context (if any)"
-  [context component]
-  (let [root (assoc component
-                    :gx/signal-mapping
-                    (or
-                     (:gx/signal-mapping component)
-                     (:signal-mapping context)))]
-    root
-    (loop [{:gx/keys [component signal-mapping] :as current} root]
+  [context root-component]
+  (let [root-component (assoc root-component
+                              :gx/signal-mapping
+                              (or
+                               (:gx/signal-mapping root-component)
+                               (:signal-mapping context)))]
+    (loop [{:gx/keys [component signal-mapping] :as current} root-component]
       (if-let [nested component]
         (recur (update nested :gx/signal-mapping
                        #(remap-signals % signal-mapping)))
@@ -219,7 +218,7 @@
           (->> mapping
                (map (fn [[k v]]
                       [k (get current v)]))
-               (into {}))
+               (into root-component))
           (dissoc current :gx/signal-mapping))))))
 
 (defn resolve-component
