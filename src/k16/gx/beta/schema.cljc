@@ -36,7 +36,7 @@
 (def ?SignalDefinition
   [:map
    gx-props
-   [:gx/processor [:or fn? keyword?]]
+   [:gx/processor ifn?]
    [:gx/props-schema {:optional true} any?]
    [:gx/resolved-props-fn {:optional true} [:maybe fn?]]
    [:gx/deps {:optional true} coll?]
