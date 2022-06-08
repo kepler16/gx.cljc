@@ -438,7 +438,7 @@
               {:component #:gx{:start #:gx{:processor "non callable val"}}
                :schema-error
                #{[:gx/start
-                  #:gx{:processor ["should be an fn" "should be a keyword"]}]}}}
+                  #:gx{:processor ["should be an ifn"]}]}}}
              (-> gx-map
                  :failures
                  first
