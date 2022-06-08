@@ -117,8 +117,7 @@
 (defmethod humanize :normalize-node-component
   [{:keys [internal-data] :as error}]
   (humanize-error
-   error (tokenize "gx/component = " (:component internal-data)
-                   "schema-error = " (:schema-error internal-data))))
+   error (tokenize "schema-error = " (:schema-error internal-data))))
 
 (comment
   (humanize {:message "Component schema error",
