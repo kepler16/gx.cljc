@@ -305,8 +305,9 @@
   "Given a graph definition and config, return a normalised form. Idempotent.
    This acts as the static analysis step of the graph.
    Returns tuple of error explanation (if any) and normamized graph."
-  [{:keys [context graph] :as gx-map}]
+  [{:keys [context graph] :or {context default-context} :as gx-map}]
   (let [config-issues (gx.schema/validate-context context)
+        gx-map (assoc gx-map :context context)
         ;; remove previous normalization errors
         gx-map' (cond-> gx-map
                   (not (:initial-graph gx-map)) (assoc :initial-graph graph)
