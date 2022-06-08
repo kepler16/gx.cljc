@@ -1,8 +1,7 @@
 .nrepl-port
-.clj-kondo
-!.clj-kondo/config.edn
+.clj-kondo/.cache/
 .cpcache
-.lsp
+.lsp/.cache/
 /target/
 /node_modules/
 .calva
