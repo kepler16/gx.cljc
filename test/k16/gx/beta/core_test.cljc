@@ -109,7 +109,7 @@
                                         :to-state :started}
                          :custom/stop {:from-states #{:started}
                                        :to-state :stopped
-                                       :deps-from :gx/start}}}
+                                       :deps-from :custom/start}}}
         graph {:a {:nested-a 1}
                :z '(get (gx/ref :a) :nested-a)
                :y '(println "starting")
