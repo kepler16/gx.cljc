@@ -147,7 +147,7 @@
         def? (and (map? signal-def)
                   (some #{:gx/props :gx/props-fn
                           :gx/processor :gx/deps
-                          :gx/resolved-props}
+                          :gx/resolved-props :gx/after}
                         (keys signal-def)))
         with-pushed-down-form
         (if def?
@@ -326,7 +326,10 @@
 (defn graph-dependencies [graph signal-key]
   (->> graph
        (map (fn [[k node]]
-              (let [deps (-> node signal-key :gx/deps)]
+              (let [deps (-> node
+                             signal-key
+                             :gx/deps
+                             (concat (or (:gx/after node) [])))]
                 [k (into #{} deps)])))
        (into {})))
 

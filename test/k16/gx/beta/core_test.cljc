@@ -443,3 +443,24 @@
                  :failures
                  first
                  (update :internal-data dissoc :component-schema)))))))
+
+(def server-component
+  {:gx/start {:gx/processor (fn [_] :http-server)}
+   :gx/stop {:gx/processor (fn [_] nil)}})
+
+(def logger-component
+  {:gx/start {:gx/processor (fn [_] :logger)}
+   :gx/stop {:gx/processor (fn [_] nil)}})
+
+(deftest signal-flow-dependency-test
+  (let [graph {:logger {:gx/component 'k16.gx.beta.core-test/logger-component}
+               :options {:port 8080}
+               :other {:gx/after #{:server}}
+               :server {:gx/component 'k16.gx.beta.core-test/server-component
+                        :gx/props '(gx/ref :options)
+                        :gx/after #{:logger}}}
+        norm (gx/normalize {:graph graph})]
+    (is (= '(:server :other :options :logger)
+           (second (gx/topo-sort norm :gx/stop))))
+    (is (= '(:logger :options :other :server)
+           (second (gx/topo-sort norm :gx/start))))))

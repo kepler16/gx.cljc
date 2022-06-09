@@ -40,6 +40,7 @@
    [:gx/props-schema {:optional true} any?]
    [:gx/resolved-props-fn {:optional true} [:maybe fn?]]
    [:gx/deps {:optional true} coll?]
+   [:gx/after {:optional true} set?]
    [:gx/resolved-props {:optional true} [:maybe any?]]])
 
 (def ?NormalizedNodeDefinition
