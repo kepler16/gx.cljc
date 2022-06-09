@@ -3,16 +3,16 @@
             #?(:clj [clojure.test :as t :refer [deftest is]])
             #?@(:cljs [[cljs.test :as t :refer-macros [deftest is]]])))
 
-(def nested-level-2
+(def ^:export nested-level-2
   {:l2/start {:gx/processor identity}
    :l2/stop {:gx/processor identity}})
 
-(def nested-level-1
+(def ^:export nested-level-1
   {:gx/component nested-level-2
    :gx/signal-mapping {:l1/start :l2/start
                        :l1/stop :l2/stop}})
 
-(def root
+(def ^:export root
   {:gx/component nested-level-1})
 
 (comment
@@ -25,7 +25,7 @@
   ;;         :stop #:gx{:processor #function[clojure.core/identity]}}
 )
 
-(deftest nested-cÇomponent-resolve-test
+(deftest nested-component-resolve-test
   (let [resolved (gx/resolve-component (assoc gx/default-context
                                               :signal-mapping
                                               {:gx/start :l1/start
