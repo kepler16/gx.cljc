@@ -312,7 +312,7 @@
   "Validates context against schema and checks signal dependency errors"
   [context]
   (or (gx.schema/validate-context context)
-      (let [deps (signal-dependencies default-context)]
+      (let [deps (signal-dependencies context)]
         (->> deps
              (impl/sccs)
              (impl/dependency-errors deps)
