@@ -6,7 +6,6 @@
 
 (def ?SignalConfig
   [:map {:closed true}
-   [:order [:enum :topological :reverse-topological]]
    [:deps {:optional true} [:sequential keyword?]]
    [:from-states [:set keyword?]]
    [:to-state keyword?]
@@ -40,7 +39,6 @@
    [:gx/props-schema {:optional true} any?]
    [:gx/resolved-props-fn {:optional true} [:maybe fn?]]
    [:gx/deps {:optional true} coll?]
-   [:gx/after {:optional true} set?]
    [:gx/resolved-props {:optional true} [:maybe any?]]])
 
 (def ?NormalizedNodeDefinition

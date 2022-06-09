@@ -105,11 +105,9 @@
                         :normalize {:auto-signal :custom/start
                                     :props-signals #{:custom/start}}
                         :signals
-                        {:custom/start {:order :topological
-                                        :from-states #{:stopped :uninitialized}
+                        {:custom/start {:from-states #{:stopped :uninitialized}
                                         :to-state :started}
-                         :custom/stop {:order :reverse-topological
-                                       :from-states #{:started}
+                         :custom/stop {:from-states #{:started}
                                        :to-state :stopped
                                        :deps-from :gx/start}}}
         graph {:a {:nested-a 1}
@@ -444,23 +442,51 @@
                  first
                  (update :internal-data dissoc :component-schema)))))))
 
-(def server-component
-  {:gx/start {:gx/processor (fn [_] :http-server)}
-   :gx/stop {:gx/processor (fn [_] nil)}})
+(def ^:export server-component
+  {:gx/start {:gx/processor (fn [{:keys [props]}]
+                              (swap! (:flow props) conj :server))}
+   :gx/stop {:gx/processor (fn [{:keys [props]}]
+                             (swap! (:flow props) conj :server)
+                             nil)}})
 
-(def logger-component
-  {:gx/start {:gx/processor (fn [_] :logger)}
-   :gx/stop {:gx/processor (fn [_] nil)}})
+(def ^:export db-component
+  {:gx/start {:gx/processor (fn [{:keys [props]}]
+                              (swap! (:flow props) conj :db))}
+   :gx/stop {:gx/processor (fn [{:keys [props]}]
+                             (swap! (:flow props) conj :db)
+                             nil)}})
 
-(deftest signal-flow-dependency-test
-  (let [graph {:logger {:gx/component 'k16.gx.beta.core-test/logger-component}
+(def ^:export logger-component
+  {:gx/start {:gx/processor (fn [{:keys [props]}]
+                              (swap! (:flow props) conj :logger))}
+   :gx/stop {:gx/processor (fn [{:keys [props]}]
+                             (swap! (:flow props) conj :logger)
+                             nil)}})
+
+(deftest signal-selector-test
+  (let [flow (atom [])
+        graph {:logger {:gx/component 'k16.gx.beta.core-test/logger-component
+                        :gx/props {:flow flow}}
                :options {:port 8080}
-               :other {:gx/after #{:server}}
+               :db {:gx/component 'k16.gx.beta.core-test/db-component
+                    :gx/props {:flow flow}}
                :server {:gx/component 'k16.gx.beta.core-test/server-component
-                        :gx/props '(gx/ref :options)
-                        :gx/after #{:logger}}}
-        norm (gx/normalize {:graph graph})]
-    (is (= '(:server :other :options :logger)
-           (second (gx/topo-sort norm :gx/stop))))
-    (is (= '(:logger :options :other :server)
-           (second (gx/topo-sort norm :gx/start))))))
+                        :gx/props {:opts '(gx/ref :options)
+                                   :flow flow}}}
+        norm (gx/normalize {:graph graph})
+        gx-started (gx/signal norm :gx/start #{:logger})]
+    #?@(:clj [@gx-started
+              (is (= [:logger :db :server] @flow))
+              (reset! flow [])
+              @(gx/signal @gx-started :gx/stop #{:logger})
+              (is (= [:server :db :logger] @flow))]
+        :cljs [(t/async
+                done
+                (p/then gx-started
+                        (fn [s]
+                          (is (= [:logger :db :server] @flow))
+                          (reset! flow [])
+                          (p/then (gx/signal s :gx/stop #{:logger})
+                                  (fn [_]
+                                    (is (= [:server :db :logger] @flow))
+                                    (done))))))])))
