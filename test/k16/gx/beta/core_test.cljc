@@ -490,3 +490,18 @@
                                   (fn [_]
                                     (is (= [:server :db :logger] @flow))
                                     (done))))))])))
+
+(deftest validate-context-test
+  (let [context {:initial-state :uninitialised
+                 :normalize {:auto-signal :gx/start
+                             :props-signals #{:gx/start}}
+                 :signal-mapping {}
+                 :signals {:gx/start {:from-states #{:stopped :uninitialised}
+                                      :to-state :started
+                                      :deps-from :gx/stop}
+                           :gx/stop {:from-states #{:started}
+                                     :to-state :stopped
+                                     :deps-from :gx/start}}}]
+    (testing "should check for circular deps-from"
+      (is (= "circular :gx/start -> :gx/stop -> :gx/start"
+             (first (gx/validate-context context)))))))
