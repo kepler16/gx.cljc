@@ -1,5 +1,32 @@
 (ns k16.gx.beta.errors)
 
+(defrecord ErrorContext [error-type node-key node-contents signal-key])
+
+(def ^:dynamic *err-ctx*
+  (map->ErrorContext {:error-type :general}))
+
+(defn gx-err-data
+  ([internal-data]
+   (gx-err-data nil internal-data))
+  ([message internal-data]
+   (->> *err-ctx*
+        (filter (fn [[_ v]] v))
+        (into (if message {:message message} {}))
+        (merge {:internal-data internal-data}))))
+
+(defn throw-gx-err
+  ([message]
+   (throw-gx-err message nil))
+  ([message internal-data]
+   (throw (ex-info message (gx-err-data message internal-data)))))
+
+(defn ex->gx-err-data
+  [ex]
+  (->> (ex-data ex)
+       (merge *err-ctx*)
+       (filter (fn [[_ v]] v))
+       (into {:message (ex-message ex)})))
+
 (defn- stringify
   [token]
   (cond

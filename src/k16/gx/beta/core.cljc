@@ -1,43 +1,15 @@
 (ns k16.gx.beta.core
   (:refer-clojure :exclude [ref])
+  #?(:cljs (:require-macros [k16.gx.beta.error-context :refer [with-err-ctx]]))
   (:require [clojure.walk :as walk]
-            [k16.gx.beta.impl :as impl]
-            [k16.gx.beta.schema :as gx.schema]
             [malli.core :as m]
             [malli.error :as me]
-            [promesa.core :as p])
+            [promesa.core :as p]
+            [k16.gx.beta.impl :as impl]
+            [k16.gx.beta.schema :as gx.schema]
+            [k16.gx.beta.errors :as gx.err]
+            #?(:clj [k16.gx.beta.error-context :refer [with-err-ctx]]))
   (:import #?(:clj [clojure.lang ExceptionInfo])))
-
-(defrecord ErrorContext [error-type node-key node-contents signal-key])
-
-(def ->err-ctx map->ErrorContext)
-
-(def ^:dynamic *err-ctx*
-  (->err-ctx {:error-type :general}))
-
-(defn ->gx-error-data
-  ([internal-data]
-   (->gx-error-data nil internal-data))
-  ([message internal-data]
-   (->> *err-ctx*
-        (filter (fn [[_ v]] v))
-        (into (if message {:message message} {}))
-        (merge {:internal-data internal-data}))))
-
-(defn throw-gx-error
-  ([message]
-   (throw-gx-error message nil))
-  ([message internal-data]
-   (throw (ex-info message (->gx-error-data
-                            message
-                            internal-data)))))
-
-(defn gx-error->map
-  [ex]
-  (->> (ex-data ex)
-       (merge *err-ctx*)
-       (filter (fn [[_ v]] v))
-       (into {:message (ex-message ex)})))
 
 (def locals #{'gx/ref 'gx/ref-keys})
 
@@ -64,6 +36,8 @@
                         :to-state :started}
              :gx/stop {:from-states #{:started}
                        :to-state :stopped
+                       ;; this is used as a sign of anti-signal and aplies
+                       ;; it in reversed order
                        :deps-from :gx/start}}})
 
 (defn resolve-symbol
@@ -125,16 +99,16 @@
                   (local-form? sub-form) sub-form
 
                   (special-symbol? sub-form)
-                  (throw-gx-error "Special forms are not supported"
-                                  {:form-def form-def
-                                   :token sub-form})
+                  (gx.err/throw-gx-err "Special forms are not supported"
+                                       {:form-def form-def
+                                        :token sub-form})
 
                   (resolve-symbol sub-form) (resolve-symbol sub-form)
 
                   (symbol? sub-form)
-                  (throw-gx-error "Unable to resolve symbol"
-                                  {:form-def form-def
-                                   :token sub-form})
+                  (gx.err/throw-gx-err "Unable to resolve symbol"
+                                       {:form-def form-def
+                                        :token sub-form})
 
                   :else sub-form))))]
     {:env @props*
@@ -223,9 +197,7 @@
   "Resolve component by it's symbol and validate against malli schema"
   [context component]
   (when component
-    (binding [*err-ctx* (assoc *err-ctx*
-                               :error-type
-                               :normalize-node-component)]
+    (with-err-ctx {:error-type :normalize-node-component}
       (let [resolved (some->> component
                               (resolve-symbol)
                               (flatten-component context))
@@ -233,14 +205,14 @@
                               (gx.schema/validate-component context resolved))]
         (cond
           (not resolved)
-          (throw-gx-error "Component could not be resolved"
-                          {:component component})
+          (gx.err/throw-gx-err "Component could not be resolved"
+                               {:component component})
 
           issues
-          (throw-gx-error "Component schema error"
-                          {:component resolved
-                           :component-schema schema
-                           :schema-error (set issues)})
+          (gx.err/throw-gx-err "Component schema error"
+                               {:component resolved
+                                :component-schema schema
+                                :schema-error (set issues)})
 
           :else resolved)))))
 
@@ -249,10 +221,9 @@
   [{:keys [context initial-graph]} node-key node-definition]
   (if (:gx/normalized? node-definition)
     node-definition
-    (binding [*err-ctx* (->err-ctx
-                         {:error-type :normalize-node
-                          :node-key node-key
-                          :node-contents (node-key initial-graph)})]
+    (with-err-ctx {:error-type :normalize-node
+                   :node-key node-key
+                   :node-contents (node-key initial-graph)}
       (let [{:keys [initial-state]} context
             {:keys [auto-signal]} (:normalize context)
             ;; set of signals defined in the graph
@@ -339,7 +310,7 @@
                    (into {})
                    (assoc gx-map' :graph)))
       (catch ExceptionInfo e
-        (update gx-map' :failures conj (gx-error->map e))))))
+        (update gx-map' :failures conj (gx.err/ex->gx-err-data e))))))
 
 (defn graph-dependencies [graph signal-key]
   (->> graph
@@ -356,8 +327,7 @@
   ([gx-map signal-key]
    (topo-sort gx-map signal-key #{}))
   ([{:keys [context graph]} signal-key priority-selector]
-   (binding [*err-ctx* (->err-ctx {:error-type :deps-sort
-                                   :signal-key signal-key})]
+   (with-err-ctx {:error-type :deps-sort :signal-key signal-key}
      (try
        (if-let [signal-config (get-in context [:signals signal-key])]
          (let [deps-from (or (:deps-from signal-config)
@@ -374,13 +344,14 @@
                                   (impl/dependency-errors graph-deps)
                                   (map impl/human-render-dependency-error)
                                   (seq))]
-             (throw-gx-error "Dependency errors" {:errors errors}))
+             (gx.err/throw-gx-err "Dependency errors" {:errors errors}))
            [nil
             (let [topo-sorted (map first sorted-raw)]
+              ;; if signal takes deps from another signal then it is anti-signal
               (if (:deps-from signal-config)
                 (reverse topo-sorted)
                 topo-sorted))])
-         (throw-gx-error (str "Unknown signal key '" signal-key "'")))
+         (gx.err/throw-gx-err (str "Unknown signal key '" signal-key "'")))
        (catch ExceptionInfo e
          [(assoc (ex-data e) :message (ex-message e))])))))
 
@@ -403,29 +374,29 @@
 (defn props-validate-error
   [schema props]
   (when-let [error (and schema (m/explain schema props))]
-    (binding [*err-ctx* (assoc *err-ctx* :error-type :props-validation)]
-      (->gx-error-data "Props validation error"
-                       {:props-value props
-                        :props-schema schema
-                        :schema-error (me/humanize error)}))))
+    (with-err-ctx {:error-type :props-validation}
+      (gx.err/gx-err-data "Props validation error"
+                          {:props-value props
+                           :props-schema schema
+                           :schema-error (me/humanize error)}))))
 
 (defn- run-props-fn
   [props-fn arg-map]
   (try
     (props-fn arg-map)
     (catch #?(:clj Exception :cljs js/Error) e
-      (throw-gx-error "Props function error"
-                      {:ex-message (impl/error-message e)
-                       :args arg-map}))))
+      (gx.err/throw-gx-err "Props function error"
+                           {:ex-message (impl/error-message e)
+                            :args arg-map}))))
 
 (defn- run-processor
   [processor arg-map]
   (try
     [nil (processor arg-map)]
     (catch #?(:clj Exception :cljs js/Error) e
-      [(->gx-error-data "Signal processor error"
-                        {:ex-message (impl/error-message e)
-                         :args arg-map})
+      [(gx.err/gx-err-data "Signal processor error"
+                           {:ex-message (impl/error-message e)
+                            :args arg-map})
        nil])))
 
 (defn node-signal
@@ -461,7 +432,7 @@
                                   (system-failure)
                                   (filter second)
                                   (map first))]
-    (binding [*err-ctx* (assoc *err-ctx* :node-contents (node-key initial-graph))]
+    (with-err-ctx {:node-contents (node-key initial-graph)}
       (cond
         (or ;; signal isn't defined for this state transition
          (not (contains? from-states node-state))
@@ -470,7 +441,7 @@
         node
 
         (seq failed-dep-node-keys)
-        (assoc node :gx/failure (->gx-error-data
+        (assoc node :gx/failure (gx.err/gx-err-data
                                  "Failure in dependencies"
                                  {:dep-node-keys failed-dep-node-keys}))
         (ifn? processor)
@@ -513,10 +484,9 @@
          (cond
            (seq sorted)
            (p/let [node-key (first sorted)
-                   node (binding [*err-ctx* (->err-ctx
-                                             {:error-type :node-signal
-                                              :signal-key signal-key
-                                              :node-key node-key})]
+                   node (with-err-ctx {:error-type :node-signal
+                                       :signal-key signal-key
+                                       :node-key node-key}
                           (node-signal gxm node-key signal-key))
                    next-gxm (assoc-in gxm [:graph node-key] node)]
              (p/recur (merge-node-failure next-gxm node) (rest sorted)))
