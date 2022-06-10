@@ -13,18 +13,10 @@
 
 (def locals #{'gx/ref 'gx/ref-keys})
 
-;; local forms which create deps between graph nodes
-(def deps-locals (disj locals 'gx/ref-env))
-
 (defn local-form?
   [form]
   (and (seq? form)
        (locals (first form))))
-
-(defn deps-form?
-  [form]
-  (and (local-form? form)
-       (deps-locals (first form))))
 
 (def default-context
   {:initial-state :uninitialised
@@ -92,11 +84,9 @@
                 (cond
                   (locals sub-form) sub-form
 
-                  (deps-form? sub-form)
+                  (local-form? sub-form)
                   (do (swap! props* concat (-> sub-form rest flatten))
                       sub-form)
-
-                  (local-form? sub-form) sub-form
 
                   (special-symbol? sub-form)
                   (gx.err/throw-gx-err "Special forms are not supported"
