@@ -320,15 +320,26 @@
    (with-err-ctx {:error-type :deps-sort :signal-key signal-key}
      (try
        (if-let [signal-config (get-in context [:signals signal-key])]
-         (let [deps-from (or (:deps-from signal-config)
-                             signal-key)
-               graph-deps (->> deps-from
-                               (graph-dependencies graph)
-                               (map (fn [[k deps :as signal-deps]]
-                                      (if (contains? priority-selector k)
-                                        signal-deps
-                                        [k (into deps priority-selector)])))
-                               (into {}))
+         (let [deps-from (or (:deps-from signal-config) signal-key)
+               selector-deps (reduce (fn [acc k]
+                                       (->> [k deps-from :gx/deps]
+                                            (get-in graph)
+                                            (set)
+                                            (assoc acc k)))
+                                     {} priority-selector)
+               graph-deps
+               (->> deps-from
+                    (graph-dependencies graph)
+                    (map (fn [[k deps :as signal-deps]]
+                           (let [node-selector
+                                 (->> selector-deps
+                                      (filter (fn [[_ d]] (not (contains? d k))))
+                                      (map first)
+                                      (set))]
+                             (if (contains? node-selector k)
+                               signal-deps
+                               [k (into deps node-selector)]))))
+                    (into {}))
                sorted-raw (impl/sccs graph-deps)]
            (when-let [errors (->> sorted-raw
                                   (impl/dependency-errors graph-deps)

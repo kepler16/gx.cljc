@@ -465,8 +465,10 @@
 
 (deftest signal-selector-test
   (let [flow (atom [])
-        graph {:logger {:gx/component 'k16.gx.beta.core-test/logger-component
-                        :gx/props {:flow flow}}
+        graph {:logger-config {:foo "bar"}
+               :logger {:gx/component 'k16.gx.beta.core-test/logger-component
+                        :gx/props {:flow flow
+                                   :config '(gx/ref :logger-config)}}
                :options {:port 8080}
                :db {:gx/component 'k16.gx.beta.core-test/db-component
                     :gx/props {:flow flow}}
@@ -475,6 +477,7 @@
                                    :flow flow}}}
         norm (gx/normalize {:graph graph})
         gx-started (gx/signal norm :gx/start #{:logger})]
+    (is (= nil (:failures norm)))
     #?@(:clj [@gx-started
               (is (= [:logger :db :server] @flow))
               (reset! flow [])
