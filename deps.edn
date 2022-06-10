@@ -4,8 +4,7 @@
 
  :deps
  {funcool/promesa {:mvn/version "8.0.450"}
-  metosin/malli {:mvn/version "0.8.4"}
-  juxt/clip {:mvn/version "0.27.0"}}
+  metosin/malli {:mvn/version "0.8.4"}}
 
  :aliases
  {:test {:extra-paths ["test"]
