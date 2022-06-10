@@ -3,6 +3,7 @@
 (defrecord ErrorContext [error-type node-key node-contents signal-key])
 
 (def ^:dynamic *err-ctx*
+  "Error context is used for creating/throwing exceptions with contextual data"
   (map->ErrorContext {:error-type :general}))
 
 (defn gx-err-data
