@@ -7,7 +7,7 @@ slug: /
 ![GX Banner](/img/banner.png)
 # Introduction
 
-GX is data driven directed acyclic graph state machine with configurable signals and nodes for Clojure(Scipt).
+GX is data driven directed acyclic graph of state machines with configurable signals and nodes for Clojure(Scipt).
 
 ## Status
 
