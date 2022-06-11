@@ -27,8 +27,9 @@ Deps:
 ## Usage
 
 To start using GX you need two things:
-- Graph configuration (**config**) - contains signal definitions
-- The graph itself - contains nodes of our state machine
+- **Graph** - where nodes of our particular graph are defined
+- **Graph Context** - where signals, normalisation hints and other config is defined
+
 ### Graph Configuration
 
 **Config** is a simple map with **signals**. Here we define two signals `:my/start` and `:my/stop`:
