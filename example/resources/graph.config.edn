@@ -1,7 +1,0 @@
-{:signals
- {:app/start {:order :topological
-              :from-states #{:stopped :uninitialized}
-              :to-state :started}
-  :app/stop {:order :reverse-topological
-             :from-states #{:started}
-             :to-state :stopped}}}

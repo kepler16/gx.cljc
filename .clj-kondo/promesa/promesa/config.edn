@@ -1,0 +1,2 @@
+{:lint-as
+ {promesa.core/loop clojure.core/loop}}

@@ -1,0 +1,18 @@
+{:http/options {:port 8080}
+
+ :http/routes
+ ["/users"
+  {:get
+   {:handler app/get-users}}]
+
+ :http/ring-router {:gx/component components/ring-router-component
+                    :gx/props {:routes (gx/ref :http/routes)}}
+
+ :http/server {:gx/component components/http-kit-component
+               :gx/props {:handler (gx/ref :http/ring-router)
+                          :options (gx/ref :http/options)}}
+
+ :app (println "Application starting on port " (gx/ref :http/options))
+
+ :another {:gx/start (println "another starting")
+           :gx/stop (println "another stopping")}}
