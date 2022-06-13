@@ -68,7 +68,6 @@ Alright, let's write app code:
                   {:user "Donald"}])})
 ```
 
-Components:
 ```clojure title="src/components.clj"
 (ns components
   (:require [reitit.ring :as reitit-ring]
@@ -104,20 +103,23 @@ Components:
 
 ```
 
-We defined users handler, router and a ring router components, they are all sequentially linked in our configuration.
+We defined handler function, routes, ring router and server components, they are all linked in our configuration.
 
-Sweet, out app is ready. Next we add some boring system routines:
+Sweet, our app is ready. Next we add some boring system routines:
 
 ```clojure title="src/main.clj"
 (ns main
   (:require [app]
             [clojure.edn :as edn]
             [k16.gx.beta.core :as gx]
+            ;; this ns contains helpers for managing systems
             [k16.gx.beta.system :as gx.system]))
 
 (defn load-system! []
+  ;; register our system, so later we can get it by name
   (gx.system/register!
    ::system
+   ;; :context key is optional, fallbacks to gx/default-context
    {:context gx/default-context
     :graph (edn/read-string (slurp "resources/config.edn"))}))
 
@@ -143,6 +145,13 @@ Sweet, out app is ready. Next we add some boring system routines:
      (Thread. #(stop!))))
 
   (start!)
+
+  ;; we don't want semi-started system on production
+  ;; check for failures, print and exit if any
+  (when-let [failures (seq (failures))]
+    (doseq [failure failures]
+      (println failure))
+    (System/exit 1))
 
   @(promise))
 ```

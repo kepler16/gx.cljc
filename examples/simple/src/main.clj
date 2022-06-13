@@ -2,11 +2,14 @@
   (:require [app]
             [clojure.edn :as edn]
             [k16.gx.beta.core :as gx]
+            ;; this ns contains helpers for managing systems
             [k16.gx.beta.system :as gx.system]))
 
 (defn load-system! []
+  ;; register our system, so later we can get it by name
   (gx.system/register!
    ::system
+   ;; :context key is optional, fallbacks to gx/default-context
    {:context gx/default-context
     :graph (edn/read-string (slurp "resources/config.edn"))}))
 
@@ -32,6 +35,13 @@
      (Thread. #(stop!))))
 
   (start!)
+
+  ;; we don't want semi-started system on production
+  ;; check for failures, print and exit if any
+  (when-let [failures (seq (failures))]
+    (doseq [failure failures]
+      (println failure))
+    (System/exit 1))
 
   @(promise))
 
