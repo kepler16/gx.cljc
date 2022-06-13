@@ -1,18 +1,26 @@
 {:http/options {:port 8080}
 
- :http/routes
- ["/users"
-  {:get
-   {:handler app/get-users}}]
+ :http/routes ["/users"
+               {:get
+                ;; existing functions should be referenced with fully
+                ;; qualified name
+                {:handler app/get-users-handler}}]
 
- :http/ring-router {:gx/component components/ring-router-component
+ :http/ring-router {;; component is a fully qualified name of defined component
+                    :gx/component components/ring-router
+                    ;; props of a component
                     :gx/props {:routes (gx/ref :http/routes)}}
 
- :http/server {:gx/component components/http-kit-component
-               :gx/props {:handler (gx/ref :http/ring-router)
+ :http/ring-handler {:gx/component components/ring-handler
+                     :gx/props {:router (gx/ref :http/router)}}
+
+ :http/server {:gx/component components/http-server
+               :gx/props {:handler (gx/ref :http/ring-handler)
                           :options (gx/ref :http/options)}}
 
- :app (println "Application starting on port " (gx/ref :http/options))
-
+ ;; pseudo logger component, logs port by taking it from :http/options
+ :app (println "Application starting on port " (get (gx/ref :http/options)
+                                                    :port))
+ ;; independend component
  :another {:gx/start (println "another starting")
            :gx/stop (println "another stopping")}}

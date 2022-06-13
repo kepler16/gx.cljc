@@ -44,4 +44,25 @@
 
   (stop!)
   (reset!)
-  (failures))
+  (failures)
+
+  (def fancy-graph
+    {:user/data {:name "Angron"
+                 :also-named "Red Angel"
+                 :spoken-language "Nagrakali"
+                 :side :chaos}
+   ;; clojure(script) core functions, fully qualified other functions and
+   ;; gx refs will be resolved by GX
+   ;; special forms and macros are not supported (e.g. throw, if, loop etc)
+     :user/name '(get (gx/ref :user/data) :name)
+     :user/lang '(get (gx/ref :user/data) :spoken-language)})
+
+  (def system
+    @(gx/signal {:graph fancy-graph} :gx/start))
+
+  (gx/system-value system)
+  (gx/system-failure system)
+  ;; => #:user{:data nil, :name nil, :lang nil}
+
+  (gx/system-value system)
+  )

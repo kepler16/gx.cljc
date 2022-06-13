@@ -5,7 +5,7 @@
         org.xerial/sqlite-jdbc {:mvn/version "3.23.1"}
         metosin/reitit {:mvn/version "0.5.18"}
         http-kit/http-kit {:mvn/version "2.3.0"}
-        kepler16/gx.cljc {:mvn/version "LATEST"}}
+        kepler16/gx.cljc {:local/root "../"}}
  :aliases
  {:dev {:extra-deps {kepler16/gx.cljc {:local/root "../../"}}}
   :main {:main-opts  ["-m" "main"]}}}
