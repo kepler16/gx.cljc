@@ -46,7 +46,7 @@ In app config need:
  :another {:gx/start (println "another starting")
            :gx/stop (println "another stopping")}}
 ```
-Our app is a simple web server with one route `/users`. You may notice a new keyword `:gx/component` it is a component node. We using two different types of gx references in our config:
+Our app is a simple web server with one route `/users`. You may notice a new keyword `:gx/component` it is a component node. There is two different types of gx references available in config:
 
 | type          | description        | example                                                  |
 | ------------- | ------------------ | -------------------------------------------------------- |
