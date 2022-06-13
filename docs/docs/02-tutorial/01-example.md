@@ -162,4 +162,4 @@ clj -M:main
 ```
 Open your browser: http://localhost:8080/users. Viola! In the next step, we will add a database component.
 
-Full source code is available on [github](https://github.com/kepler16/gx.cljc/tree/gx-v2/example).
+Full source code is available on [github](https://github.com/kepler16/gx.cljc/tree/master/examples/simple).
