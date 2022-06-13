@@ -7,7 +7,7 @@ slug: /
 ![GX Banner](/img/banner.png)
 # Introduction
 
-GX is data driven directed acyclic graph of state machines with configurable signals and nodes for Clojure(Scipt). Main usage - simple system wide component based dependency injection mechanism for startup/teardown.
+GX is data driven directed acyclic graph of state machines with configurable signals and nodes for Clojure(Script). Common usage - simple system wide component based dependency injection mechanism for startup/teardown.
 
 ## Status
 
@@ -30,7 +30,7 @@ To start using GX you need two things:
 - **Graph** - where nodes of our particular graph are defined
 - **Graph Context** - where signals, normalisation hints and other config is defined. This is optional, GX comes with sane defaults.
 
-### Graph Context
+### Default Graph Context
 
 **Context** is a simple map with **signals**.
 
@@ -41,9 +41,9 @@ To start using GX you need two things:
    :initial-state :uninitialised
    :normalize {;; signal, which is default for all nodes
                :auto-signal :gx/start
-               ;; by default top level graph props are pushed down to :gx/start
+               ;; by top level graph props are pushed down to :gx/start
                :props-signals #{:gx/start}}
-   ;; used for third party components with other signal names
+   ;; used for plugging in third party components with other signal names
    :signal-mapping {}
    ;; list of signals
    :signals {:gx/start {;; from which states signal can be called
@@ -71,8 +71,8 @@ Lets create a graph of three nodes. Node value can be any data structure, primit
                :also-named "Red Angel"
                :spoken-language "Nagrakali"
                :side :chaos}
-   ;; clojure(script) core functions, fully qualified other functions and
-   ;; gx refs will be resolved by GX
+   ;; unqualified Clojure(Script) core functions, fully qualified
+   ;; functions and gx refs will be resolved by GX
    ;; special forms and macros are not supported (e.g. throw, if, loop etc)
    :user/name '(get (gx/ref :user/data) :name)
    :user/lang '(get (gx/ref :user/data) :spoken-language)})
@@ -83,14 +83,14 @@ Lets create a graph of three nodes. Node value can be any data structure, primit
  ```clojure
  ;; not mandatory, happens automatically during signal execution
  ;; returns gx-map (a system) - a map with following keys:
- ;; - :initial-graph - the initial fancy graph
+ ;; - :initial-graph - in our case fancy-graph
  ;; - :graph - normalized graph
  ;; - :failures - list of humanized error messages (if any)
  ;; - :context - current GX context
  (def system (gx/normalize {:graph fancy-graph}))
  ```
 
-Here is our system afterwards:
+Here is our normalized system:
 
  ```clojure
  {:graph
@@ -162,7 +162,9 @@ Here is our system afterwards:
         :name (get (gx/ref :user/data) :name),
         :lang (get (gx/ref :user/data) :spoken-language)}}
  ```
-Now every node is in a normalized state. It has **startup** signal `:gx/start` but not `:gx/stop`, because we didn't define any signals on nodes. And node without signals becomes `:gx/type = :static` with **startup** signal only.
+
+Now every node is in a normalized state. It has **startup** signal `:gx/start` but not `:gx/stop`, because we didn't define any signals on nodes.
+
 Next, we send a signal to our graph by calling `gx/signal`. Signals run asynchronously (using [funcool/promesa](https://github.com/funcool/promesa)) and returns resolvable object:
 
 ```clojure

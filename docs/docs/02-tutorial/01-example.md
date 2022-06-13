@@ -46,7 +46,7 @@ In app config need:
  :another {:gx/start (println "another starting")
            :gx/stop (println "another stopping")}}
 ```
-Our app is a simple web server with one route `/users`. You may notice a new keyword `:gx/component` it is a component node. There is two different types of gx references available in config:
+Our app is a simple web server with one route `/users`. You may noticed a new keyword `:gx/component` which is used for linking predefined components. There are two different types of gx references available in config:
 
 | type          | description        | example                                                  |
 | ------------- | ------------------ | -------------------------------------------------------- |
@@ -103,7 +103,7 @@ Alright, let's write app code:
 
 ```
 
-We defined handler function, routes, ring router and server components, they are all linked in our configuration.
+We defined handler function, routes, ring router and server components and they are all glued by our `config.edn` file.
 
 Sweet, our app is ready. Next we add some boring system routines:
 
@@ -147,7 +147,7 @@ Sweet, our app is ready. Next we add some boring system routines:
   (start!)
 
   ;; we don't want semi-started system on production
-  ;; check for failures, print and exit if any
+  ;; check for failures, print them and exit if any
   (when-let [failures (seq (failures))]
     (doseq [failure failures]
       (println failure))
