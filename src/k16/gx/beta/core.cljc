@@ -48,6 +48,15 @@
                     (quiet-requiring-resolve)
                     (var-get)))))
 
+(defn try-resolve-symbol
+  "Tries to resolve non nil symbol, throws gx error
+   if symbol could not be resolved"
+  [err-msg sym]
+  (when sym
+    (if-let [resolved (resolve-symbol sym)]
+      resolved
+      (gx.err/throw-gx-err err-msg {:token sym}))))
+
 (defn ref
   [key]
   (list 'gx/ref key))
@@ -129,9 +138,12 @@
                                      (map (fn [dep]
                                             [dep (list 'gx/ref dep)]))
                                      (into {}))}))
-        resolved-props-fn (some-> with-pushed-down-form
-                                  :gx/props-fn
-                                  (resolve-symbol))
+        resolved-props-fn (try-resolve-symbol
+                           "Props-fn could not be resolved"
+                           (:gx/props-fn with-pushed-down-form))
+        resolved-wrappers (mapv (partial try-resolve-symbol
+                                         "Signal wrapper could not be resolved")
+                                (:gx/wrappers with-pushed-down-form))
         with-resolved-props
         (if (:gx/resolved-props with-pushed-down-form)
           with-pushed-down-form
@@ -140,6 +152,7 @@
             (merge with-pushed-down-form
                    {:gx/resolved-props form
                     :gx/resolved-props-fn resolved-props-fn
+                    :gx/resolved-wrappers resolved-wrappers
                     :gx/deps env})))]
     with-resolved-props))
 
@@ -191,7 +204,8 @@
           (dissoc current :gx/signal-mapping))))))
 
 (defn resolve-component
-  "Resolve component by it's symbol and validate against malli schema"
+  "Resolve component by it's symbol and validate against malli schema,
+   flattens and remaps nested components"
   [context component]
   (when component
     (with-err-ctx {:error-type :normalize-node-component}
@@ -243,9 +257,6 @@
             component (some->> with-pushed-down-form
                                :gx/component
                                (resolve-component context))
-           ;; merge in component
-           ;; TODO support nested gx/component
-           ;; TODO support signal-mapping
             with-component (impl/deep-merge
                             component (dissoc with-pushed-down-form
                                               :gx/component))
@@ -398,9 +409,16 @@
                             :args arg-map}))))
 
 (defn- run-processor
-  [processor arg-map]
+  [processor arg-map wrappers]
   (try
-    [nil (processor arg-map)]
+    (let [processor' (if (seq wrappers)
+                       (->> wrappers
+                            (reverse)
+                            (reduce (fn [val wrapper]
+                                      (wrapper gx.err/*err-ctx* val))
+                                    processor))
+                       processor)]
+      [nil (processor' arg-map)])
     (catch #?(:clj Exception :cljs js/Error) e
       [(gx.err/gx-err-data "Signal processor error"
                            {:ex-message (impl/error-message e)
@@ -421,7 +439,8 @@
         node (get graph node-key)
         node-state (:gx/state node)
         signal-def (get node signal-key)
-        {:gx/keys [processor props-schema resolved-props]} signal-def
+        {:gx/keys [processor props-schema
+                   resolved-props resolved-wrappers]} signal-def
         ;; take deps from another signal of node if current signal has deps-from
         ;; and does not have resolved props
         {:gx/keys [resolved-props resolved-props-fn deps]}
@@ -460,8 +479,10 @@
                                                     props-schema props-result)]
                              [validate-error]
                              (run-processor
-                              processor {:props props-result
-                                         :value (:gx/value node)}))]
+                              processor
+                              {:props props-result
+                               :value (:gx/value node)}
+                              resolved-wrappers))]
           (if error
             (assoc node :gx/failure error)
             (-> node

@@ -38,6 +38,7 @@
    [:gx/processor ifn?]
    [:gx/props-schema {:optional true} any?]
    [:gx/resolved-props-fn {:optional true} [:maybe fn?]]
+   [:gx/resolved-wrappers {:optional true} [:maybe [:vector fn?]]]
    [:gx/deps {:optional true} coll?]
    [:gx/resolved-props {:optional true} [:maybe any?]]])
 
@@ -45,7 +46,7 @@
   [:map
    ;; top level props
    gx-props
-   [:gx/component {:optional true }any?]
+   [:gx/component {:optional true} any?]
    [:gx/signal-mapping {:optional true} [:map-of keyword? keyword?]]
    [:gx/state {:optional true} keyword?]
    [:gx/failure {:optional true} any?]
