@@ -32,13 +32,20 @@
                        ;; it in reversed order
                        :deps-from :gx/start}}})
 
+#?(:clj
+   (defn quiet-requiring-resolve
+     [sym]
+     (try
+       (requiring-resolve sym)
+       (catch Throwable _ nil))))
+
 (defn resolve-symbol
   [sym]
   (when (symbol? sym)
     #?(:cljs (impl/namespace-symbol sym)
        :clj (some-> sym
                     (impl/namespace-symbol)
-                    (requiring-resolve)
+                    (quiet-requiring-resolve)
                     (var-get)))))
 
 (defn ref

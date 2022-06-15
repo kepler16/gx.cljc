@@ -102,7 +102,7 @@
                           (string/split #"\."))]
              (loop [p path
                     obj goog.global]
-               (if (seq p)
+               (if (and (seq p) obj)
                  (recur (rest p) (aget obj (first p)))
                  obj)))))
 

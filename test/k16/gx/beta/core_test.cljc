@@ -508,3 +508,13 @@
     (testing "should check for circular deps-from"
       (is (= "circular :gx/start -> :gx/stop -> :gx/start"
              (first (gx/validate-context context)))))))
+
+(deftest unserolvable-symbol-test
+  (let [graph {:a 'foo.bar/baz}
+        norm (gx/normalize {:graph graph})]
+    (is (= {:message "Unable to resolve symbol",
+            :error-type :normalize-node,
+            :node-key :a,
+            :node-contents 'foo.bar/baz,
+            :internal-data {:form-def 'foo.bar/baz, :token 'foo.bar/baz}}
+           (first (:failures norm))))))
