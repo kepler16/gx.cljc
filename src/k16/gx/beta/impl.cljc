@@ -137,6 +137,10 @@
   (reduce merger maps))
 
 (defn error-message
-  [e]
-  #?(:cljs (.-message e)
-     :clj (.getMessage e)))
+  [ex]
+  (->> ex
+       (iterate ex-cause)
+       (take-while some?)
+       (mapv ex-message)
+       (interpose "; ")
+       (apply str)))

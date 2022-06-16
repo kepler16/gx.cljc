@@ -365,8 +365,34 @@
                          :node-key :b,
                          :node-contents '(/ (gx/ref :a) 0),
                          :signal-key :gx/start})
-           p-gx-started (gx/signal gx-map :gx/start)]
-       (is (= expect (:failures @p-gx-started))))))
+           p-gx-started (gx/signal gx-map :gx/start)
+           failures (-> (:failures @p-gx-started)
+                        (vec)
+                        (update-in [2 :internal-data] dissoc :ex))]
+       (is (= expect failures)))))
+
+
+#?(:cljs (defn ^:export thrower-js []
+           (throw (ex-info "I am an error" {:foo "bar"}))))
+
+#?(:cljs
+   (deftest processor-failure-test
+     (let [graph {:a '(get)}]
+       (t/async
+        done
+        (p/then (gx/signal {:graph graph} :gx/start)
+                (fn [gx-map]
+                  (is (= {:internal-data
+                          {:ex-message "Invalid arity: 0",
+                           :args {:props {}, :value nil}},
+                          :message "Signal processor error",
+                          :error-type :node-signal, :node-key :a,
+                          :node-contents '(get),
+                          :signal-key :gx/start}
+                         (-> (:failures gx-map)
+                             (first)
+                             (update :internal-data dissoc :ex))))
+                  (done)))))))
 
 (def ^:export push-down-props-component
   {:gx/props (gx/ref-keys [:a])
