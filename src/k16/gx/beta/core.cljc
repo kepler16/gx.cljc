@@ -243,9 +243,7 @@
             component (some->> with-pushed-down-form
                                :gx/component
                                (resolve-component context))
-           ;; merge in component
-           ;; TODO support nested gx/component
-           ;; TODO support signal-mapping
+            ;; merge in component
             with-component (impl/deep-merge
                             component (dissoc with-pushed-down-form
                                               :gx/component))
