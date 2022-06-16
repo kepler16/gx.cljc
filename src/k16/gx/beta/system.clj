@@ -38,7 +38,7 @@
   (when-let [gx-map (get @registry* system-name)]
     (node-props gx-map :gx/value)))
 
-(defn failures
+(defn node-failures
   [system-name]
   (when-let [gx-map (get @registry* system-name)]
     (let [{:keys [components static]} (node-props gx-map :gx/failure)
@@ -47,6 +47,11 @@
       (cond-> nil
         (seq failed-comps) (assoc :components failed-comps)
         (seq failed-static) (assoc :static failed-static)))))
+
+(defn failures
+  [system-name]
+  (when-let [gx-map (get @registry* system-name)]
+    (:failures gx-map)))
 
 (defn failures-humanized
   [system-name]

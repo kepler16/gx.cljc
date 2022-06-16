@@ -401,9 +401,10 @@
   [processor arg-map]
   (try
     [nil (processor arg-map)]
-    (catch #?(:clj Exception :cljs js/Error) e
+    (catch #?(:clj Throwable :cljs js/Error) e
       [(gx.err/gx-err-data "Signal processor error"
                            {:ex-message (impl/error-message e)
+                            :ex (or (ex-data e) e)
                             :args arg-map})
        nil])))
 

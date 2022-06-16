@@ -93,9 +93,8 @@
 (defmethod humanize :node-signal
   [{:keys [internal-data] :as error}]
   (humanize-error
-   error (when-let [{:keys [ex-message args dep-node-keys]} internal-data]
+   error (when-let [{:keys [ex-message dep-node-keys]} internal-data]
            (tokenize "error = " ex-message
-                     "args = " args
                      "deps-nodes = " dep-node-keys))))
 
 (comment
