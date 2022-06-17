@@ -9,12 +9,12 @@
  :http/ring-router {;; component is a fully qualified name of defined component
                     :gx/component components/ring-router
                     ;; props of a component
-                    :gx/props {:routes (gx/ref :http/routes)}}
+                    :gx/props {:routes (gx/ref :http/routes)
+                               :database (gx/ref :sqlite/database)
+                               :db-ready? (gx/ref :sqlite/db-populator)}}
 
  :http/ring-handler {:gx/component components/ring-handler
-                     :gx/props {:router (gx/ref :http/ring-router)
-                                :database (gx/ref :sqlite/database)
-                                :db-ready? (gx/ref :sqlite/db-populator)}}
+                     :gx/props {:router (gx/ref :http/ring-router)}}
 
  :http/server {:gx/component components/http-server
                :gx/props {:handler (gx/ref :http/ring-handler)
@@ -27,10 +27,10 @@
  :another {:gx/start (println "another starting")
            :gx/stop (println "another stopping")}
 
- :sqlite/db-spec {:connection-uri "jdbc:sqlite::memory:"}
+ :sqlite/db-uri {:connection-uri "jdbc:sqlite::memory:"}
 
  :sqlite/database {:gx/component database/sqlite
-                   :gx/props (gx/ref :sqlite/db-spec)}
+                   :gx/props (gx/ref :sqlite/db-uri)}
 
  :sqlite/db-populator {:gx/component database/db-populator
                        :gx/props (gx/ref :sqlite/database)}}

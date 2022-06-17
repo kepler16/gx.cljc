@@ -7,25 +7,31 @@
   {:connection (jdbc/get-connection db-spec)})
 
 (defn stop!
-  [{conn :value}]
-  (.close {:connection conn})
+  [{db-spec :value}]
+  (.close (:connection db-spec))
   nil)
 
 (def sqlite
-  {:gx/start {:gx/processor start!}
-   :gx/stop {:gx/processor stop!}})
+  {:gx/start {:gx/processor #'start!}
+   :gx/stop {:gx/processor #'stop!}})
 
 (defn populate!
   [{db-spec :props}]
-  (println db-spec)
   (jdbc/execute!
-   db-spec "create table users (id integer, name text, last_name text))")
+   db-spec "create table users (id integer, name text, last_name text)")
   (jdbc/insert-multi!
    db-spec :users [{:id 1 :name "John" :last_name "Doe"}
                    {:id 2 :name "Peter" :last_name "Parker"}
                    {:id 3 :name "Richard" :last_name "Walker"}
                    {:id 4 :name "Sergey" :last_name "Matvienko"}])
   true)
+
+(comment
+  (let [conn (jdbc/get-connection {:connection-uri "jdbc:sqlite::memory:"})
+        spec {:connection conn}]
+    (jdbc/execute!
+     spec
+     ["create table users (id integer, name text, last_name text)"])))
 
 (def db-populator
   {:gx/start {:gx/processor populate!}})

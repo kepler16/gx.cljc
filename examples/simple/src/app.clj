@@ -3,6 +3,7 @@
 
 (defn get-users-handler
   [req]
+  (clojure.pprint/pprint req)
   {:status 200
    :content-type "text/plain"
    :body (pr-str

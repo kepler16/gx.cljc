@@ -15,10 +15,11 @@
     ;; :value - current node's value
     ;; data returned by handler is a node's new value
     :gx/processor
-    (fn start-router [{{:keys [routes database]} :props}]
+    (fn start-router [{{:keys [routes database]} :props :as params}]
+      (println "****** gx/processor" params)
       (reitit-ring/router
        routes {:data
-               ;; inject our database via middleware
+                 ;; inject our database via middleware
                {:middleware [[database-middleware database]]}}))}})
 
 (def ring-handler

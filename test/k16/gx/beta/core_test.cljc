@@ -492,12 +492,16 @@
 (deftest signal-selector-test
   (let [flow (atom [])
         graph {:logger-config {:foo "bar"}
+
                :logger {:gx/component 'k16.gx.beta.core-test/logger-component
                         :gx/props {:flow flow
                                    :config '(gx/ref :logger-config)}}
+
                :options {:port 8080}
+
                :db {:gx/component 'k16.gx.beta.core-test/db-component
                     :gx/props {:flow flow}}
+
                :server {:gx/component 'k16.gx.beta.core-test/server-component
                         :gx/props {:opts '(gx/ref :options)
                                    :flow flow}}}
