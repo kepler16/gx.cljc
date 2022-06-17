@@ -70,5 +70,5 @@
    (signal! system-name signal-key #{}))
   ([system-name signal-key priority-selector]
    (when-let [gx-map (get @registry* system-name)]
-     (swap! registry* assoc system-name
-            @(gx/signal gx-map signal-key priority-selector)))))
+     (.then (gx/signal gx-map signal-key priority-selector)
+            (fn [v] (swap! registry* assoc system-name v))))))
