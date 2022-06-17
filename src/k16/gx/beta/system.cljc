@@ -31,22 +31,17 @@
 (defn states
   [system-name]
   (when-let [gx-map (get @registry* system-name)]
-    (node-props gx-map :gx/state)))
+    (gx/system-state gx-map)))
 
 (defn values
   [system-name]
   (when-let [gx-map (get @registry* system-name)]
-    (node-props gx-map :gx/value)))
+    (gx/system-value gx-map)))
 
 (defn node-failures
   [system-name]
   (when-let [gx-map (get @registry* system-name)]
-    (let [{:keys [components static]} (node-props gx-map :gx/failure)
-          failed-comps (->> components (filter second) (into {}))
-          failed-static (->> static (filter second) (into {}))]
-      (cond-> nil
-        (seq failed-comps) (assoc :components failed-comps)
-        (seq failed-static) (assoc :static failed-static)))))
+    (gx/system-failure gx-map)))
 
 (defn failures
   [system-name]
@@ -70,5 +65,9 @@
    (signal! system-name signal-key #{}))
   ([system-name signal-key priority-selector]
    (when-let [gx-map (get @registry* system-name)]
-     (.then (gx/signal gx-map signal-key priority-selector)
-            (fn [v] (swap! registry* assoc system-name v))))))
+     #?(:clj
+        (swap! registry* assoc system-name
+               @(gx/signal gx-map signal-key priority-selector))
+        :cljs
+        (.then (gx/signal gx-map signal-key priority-selector)
+               (fn [v] (swap! registry* assoc system-name v)))))))
