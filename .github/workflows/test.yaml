@@ -1,11 +1,11 @@
-name: Publish package
+name: Run tests
 on:
   push:
-    branches:
+    branches-ignore:
       - master
 
 jobs:
-  build-and-deploy:
+  build-and-test:
     runs-on: ubuntu-latest
 
     env:
@@ -40,8 +40,6 @@ jobs:
               "username": "GITHUB",
               "password": "${{secrets.GITHUB_TOKEN}}"}]
 
-      - uses: extractions/setup-just@v1
-
       - uses: DeLaGuardo/setup-clojure@3.7
         with:
           cli: latest
@@ -54,6 +52,3 @@ jobs:
 
       - name: Test cljs
         run: npx shadow-cljs release test
-
-      - name: Semantic Release
-        run: npx semantic-release
