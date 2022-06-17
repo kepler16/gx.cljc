@@ -40,13 +40,13 @@ In app config need:
                           :options (gx/ref :http/options)}}
 
  ;; pseudo logger component, logs port by taking it from :http/options
- :app (println "Application starting on port " (get (gx/ref :http/options)
-                                                    :port))
+ :app (println "Application is starting on port " (get (gx/ref :http/options)
+                                                       :port))
  ;; independend component
  :another {:gx/start (println "another starting")
            :gx/stop (println "another stopping")}}
 ```
-Our app is a simple web server with one route `/users`. You may noticed a new keyword `:gx/component` which is used for linking predefined components. There are two different types of gx references available in config:
+Our app is a simple web server with one route `/users`. You may noticed a new keyword `:gx/component` which is used for including predefined components. There are two different types of gx references available in config:
 
 | type          | description        | example                                                  |
 | ------------- | ------------------ | -------------------------------------------------------- |
@@ -91,7 +91,7 @@ Alright, let's write app code:
 (def http-server
   {:gx/start
    {;; incoming props will be validated against malli chema
-    ;; during signal
+    ;; during signal application
     :gx/props-schema [:map
                       [:handler fn?]
                       [:options :map]]

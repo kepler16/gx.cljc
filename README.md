@@ -33,7 +33,7 @@ Graph topologies, signal definitions and normalisation stategies are configurabl
 
 ```
 
-**graph-config.edn** - define the signal schema and normalisation strategy.
+**graph-context.edn** - define the signal schema and normalisation strategy.
 
 ``` edn
 {:initial-state :uninitialised,
@@ -54,7 +54,7 @@ Graph topologies, signal definitions and normalisation stategies are configurabl
 
 (def graph-config
   {:graph (edn/read-string (slurp "graph.edn"))
-   :context (edn/read-string (slurp "graph-config.edn"))})
+   :context (edn/read-string (slurp "graph-context.edn"))})
 
 (def started-system
   (gx/signal graph-config :gx/start))
@@ -84,4 +84,6 @@ clj -X:test
 pnpm i
 # run tests
 pnpm exec shadow-cljs compile test
+# or with advanced compilation
+pnpm exec shadow-cljs release test
 ```

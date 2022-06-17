@@ -12,7 +12,9 @@
                     :gx/props {:routes (gx/ref :http/routes)}}
 
  :http/ring-handler {:gx/component components/ring-handler
-                     :gx/props {:router (gx/ref :http/router)}}
+                     :gx/props {:router (gx/ref :http/ring-router)
+                                :database (gx/ref :sqlite/database)
+                                :db-ready? (gx/ref :sqlite/db-populator)}}
 
  :http/server {:gx/component components/http-server
                :gx/props {:handler (gx/ref :http/ring-handler)
@@ -23,4 +25,12 @@
                                                     :port))
  ;; independend component
  :another {:gx/start (println "another starting")
-           :gx/stop (println "another stopping")}}
+           :gx/stop (println "another stopping")}
+
+ :sqlite/db-spec {:connection-uri "jdbc:sqlite::memory:"}
+
+ :sqlite/database {:gx/component database/sqlite
+                   :gx/props (gx/ref :sqlite/db-spec)}
+
+ :sqlite/db-populator {:gx/component database/db-populator
+                       :gx/props (gx/ref :sqlite/database)}}

@@ -55,6 +55,11 @@
   (stop!)
   (reset!)
   (failures)
+  (gx.system/states ::system)
+  (gx.system/values ::system)
+  (gx.system/signal! ::system :gx/start)
+  (gx.system/signal! ::system :gx/stop)
+  (gx.system/failures-humanized ::system)
 
   (def fancy-graph
     {:user/data {:name "Angron"
