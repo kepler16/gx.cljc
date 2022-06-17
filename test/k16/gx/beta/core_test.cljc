@@ -304,7 +304,10 @@
                            :node-contents '(inc :bar),
                            :signal-key :gx/start})
              p-gx-started (gx/signal gx-norm :gx/start)]
-         (is (= expect (:failures @p-gx-started)))))))
+         (is (= expect
+                (->> @p-gx-started
+                     :failures
+                     (map #(update % :internal-data dissoc :ex)))))))))
 
 (def props-validation-component
   {:gx/start {:gx/props (gx/ref :a)
