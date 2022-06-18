@@ -1,4 +1,9 @@
-# [](https://github.com/kepler16/gx.cljc/compare/v2.3.1...v) (2022-06-17)
+# [](https://github.com/kepler16/gx.cljc/compare/v2.3.1...v) (2022-06-18)
+
+
+### Features
+
+* system utility function node filters + tests ([8c7d134](https://github.com/kepler16/gx.cljc/commit/8c7d134187742b8943d9e4f8e5d5a3f5b07f5412))
 
 
 
