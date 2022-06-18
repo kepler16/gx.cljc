@@ -8,7 +8,8 @@
 
 (def config
   {:http/options {:port 8080}
-   :http/server {:gx/component 'k16.gx.beta.system-test/server}})
+   :http/server {:gx/component 'k16.gx.beta.system-test/server
+                 :gx/props '(gx/ref :http/options)}})
 
 (use-fixtures
   :each (fn [f]
