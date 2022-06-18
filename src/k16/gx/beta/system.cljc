@@ -18,30 +18,32 @@
                (or new-contents (-> gx-map :initial-graph node-key)))
      gx-map)))
 
-(defn node-props
-  [{:keys [graph]} property-key]
-  (let [[comps static]
-        (->> graph
-             (sort-by (fn [[_ v]] (:gx/type v)))
-             (partition-by (fn [[_ v]] (= :static (:gx/type v))))
-             (map (partial into {})))]
-    {:components (gx/get-component-props comps property-key)
-     :static (gx/get-component-props static property-key)}))
+(defn- filter-nodes
+  [graph node-keys]
+  (if (seq node-keys)
+    (select-keys graph node-keys)
+    graph))
 
 (defn states
-  [system-name]
-  (when-let [gx-map (get @registry* system-name)]
-    (gx/system-state gx-map)))
+  ([system-name]
+   (states system-name nil))
+  ([system-name node-keys]
+   (when-let [gx-map (get @registry* system-name)]
+     (filter-nodes (gx/system-state gx-map) node-keys))))
 
 (defn values
-  [system-name]
-  (when-let [gx-map (get @registry* system-name)]
-    (gx/system-value gx-map)))
+  ([system-name]
+   (values system-name nil))
+  ([system-name node-keys]
+   (when-let [gx-map (get @registry* system-name)]
+     (filter-nodes (gx/system-value gx-map) node-keys))))
 
 (defn node-failures
-  [system-name]
-  (when-let [gx-map (get @registry* system-name)]
-    (gx/system-failure gx-map)))
+  ([system-name]
+   (node-failures system-name nil))
+  ([system-name node-keys]
+   (when-let [gx-map (get @registry* system-name)]
+     (filter-nodes (gx/system-failure gx-map) node-keys))))
 
 (defn failures
   [system-name]
@@ -61,6 +63,7 @@
   (get @registry* system-name))
 
 (defn signal!
+  "Sends signal to system synchronously in clojure, asynchronously in cljs"
   ([system-name signal-key]
    (signal! system-name signal-key #{}))
   ([system-name signal-key priority-selector]
