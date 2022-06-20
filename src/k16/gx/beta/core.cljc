@@ -467,7 +467,7 @@
                 (assoc :gx/value data)
                 (assoc :gx/state to-state))))
 
-        :else node))))
+        :else (assoc node :gx/state to-state)))))
 
 (defn merge-node-failure
   [gx-map node]
