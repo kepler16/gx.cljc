@@ -1,11 +1,7 @@
 (ns components
   (:require [reitit.ring :as reitit-ring]
-            [org.httpkit.server :as http-kit]))
-
-(defn database-middleware
-  [handler database]
-  (fn [request]
-    (handler (assoc request :db database))))
+            [org.httpkit.server :as http-kit]
+            [middlewares :as mw]))
 
 (def ring-router
   {:gx/start
@@ -15,12 +11,11 @@
     ;; :value - current node's value
     ;; data returned by handler is a node's new value
     :gx/processor
-    (fn start-router [{{:keys [routes database]} :props :as params}]
-      (println "****** gx/processor" params)
+    (fn start-router [{{:keys [routes database]} :props}]
       (reitit-ring/router
        routes {:data
-                 ;; inject our database via middleware
-               {:middleware [[database-middleware database]]}}))}})
+               ;; inject our database via middleware
+               {:middleware [[mw/database-middleware database]]}}))}})
 
 (def ring-handler
   {:gx/start

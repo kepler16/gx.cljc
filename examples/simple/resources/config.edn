@@ -1,17 +1,18 @@
 {:http/options {:port 8080}
 
+ ;; we using metosin/reitit library for routing
  :http/routes ["/users"
                {:get
                 ;; existing functions should be referenced with fully
                 ;; qualified name
                 {:handler app/get-users-handler}}]
 
- :http/ring-router {;; component is a fully qualified name of defined component
+ :http/ring-router {;; :gx/component is a fully qualified
+                    ;; name of defined component
                     :gx/component components/ring-router
                     ;; props of a component
                     :gx/props {:routes (gx/ref :http/routes)
-                               :database (gx/ref :sqlite/database)
-                               :db-ready? (gx/ref :sqlite/db-populator)}}
+                               :database (gx/ref :sqlite/database)}}
 
  :http/ring-handler {:gx/component components/ring-handler
                      :gx/props {:router (gx/ref :http/ring-router)}}

@@ -19,7 +19,7 @@
 (defn stop! []
   (gx.system/signal! ::system :gx/stop))
 
-(defn reset! []
+(defn reload! []
   (stop!)
   (load-system!)
   (start!))
@@ -46,38 +46,29 @@
   @(promise))
 
 (comment
+  ;; load system from config.edn
   (load-system!)
-
-  (-> @gx.system/registry* ::system)
-
+  ;; start system
   (start!)
-
+  ;; stop system
   (stop!)
-  (reset!)
+  ;; full reload
+  (reload!)
+
+  ;; view list of failures (if any)
   (failures)
+
+  ;; states of nodes
   (gx.system/states ::system)
+  ;; node values
   (gx.system/values ::system)
-  (def _ (gx.system/signal! ::system :gx/start))
-  (def _ (gx.system/signal! ::system :gx/stop))
+  ;; human readable failures
   (gx.system/failures-humanized ::system)
 
-  (def fancy-graph
-    {:user/data {:name "Angron"
-                 :also-named "Red Angel"
-                 :spoken-language "Nagrakali"
-                 :side :chaos}
-   ;; clojure(script) core functions, fully qualified other functions and
-   ;; gx refs will be resolved by GX
-   ;; special forms and macros are not supported (e.g. throw, if, loop etc)
-     :user/name '(get (gx/ref :user/data) :name)
-     :user/lang '(get (gx/ref :user/data) :spoken-language)})
 
-  (def system
-    @(gx/signal {:graph fancy-graph} :gx/start))
-
-  (gx/system-value system)
-  (gx/system-failure system)
-  ;; => #:user{:data nil, :name nil, :lang nil}
-
-  (gx/system-value system)
+  (def graph {:http/options {:port 8080}
+              :http/server {:gx/component 'non.existent/component}})
+  (gx.system/register! :sys1 {:graph graph})
+  (gx.system/failures :sys1)
+  (gx.system/failures-humanized :sys1)
   )

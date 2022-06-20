@@ -9,7 +9,7 @@ slug: /example-app
 
 You can't do much with static nodes. GX supports components, a **component** is a node with custom signal handlers.
 
-## Lets crate an app config
+## Lets create an app config
 
 In app config need:
 - HTTP server options
