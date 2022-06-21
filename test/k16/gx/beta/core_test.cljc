@@ -18,9 +18,7 @@
               (fn [{:keys [props _value]}]
                 (let [a (:a props)]
                   (atom
-                   (assoc a :nested-a-x2 (* 2 (:nested-a a))))))}
-   :gx/stop {:gx/processor (fn [{:keys [_props value]}]
-                             nil)}})
+                   (assoc a :nested-a-x2 (* 2 (:nested-a a))))))}})
 
 (def test-component-2
   {:gx/start {:gx/props-schema TestCoponentProps
@@ -29,9 +27,7 @@
               (fn [{:keys [props _value]}]
                 (let [a (:a props)]
                   (atom
-                   (assoc a :some-value (+ 2 (:nested-a a))))))}
-   :gx/stop {:gx/processor (fn [{:keys [_props value]}]
-                             nil)}})
+                   (assoc a :some-value (+ 2 (:nested-a a))))))}})
 
 (defn load-config []
   (gx.reg/load-graph! "test/fixtures/graph.edn"))
@@ -72,8 +68,13 @@
                     :x :stopped}
                    (gx/system-state gx-stopped))
                 "all nodes should be stopped")
-            (is (= {:a {:nested-a 1}, :z 1, :y nil, :b nil :c nil :x nil}
-                   (gx/system-value gx-stopped)))))
+            (is (= {:a {:nested-a 1}, :z 1, :y nil, :b nil}
+                   (select-keys (gx/system-value gx-stopped)
+                                [:a :z :y :b])))
+            (is (= {:nested-a 1, :nested-a-x2 2}
+                   @(:c (gx/system-value gx-stopped))))
+            (is (= {:nested-a 1, :some-value 3}
+                   @(:x (gx/system-value gx-stopped))))))
         graph (load-config)
         gx-map (gx/normalize {:context context
                               :graph graph})]
@@ -135,11 +136,12 @@
                             (:a (gx/system-value gx-started))))
                      (is (= {:nested-a 1, :nested-a-x2 2}
                             @(:c (gx/system-value gx-started))))
-
                      (is (= {:a :stopped, :c :stopped}
                             (gx/system-state gx-stopped)))
-                     (is (= {:a {:nested-a 1} :c nil}
-                            (gx/system-value gx-stopped))))
+                     (is (= {:nested-a 1}
+                            (:a (gx/system-value gx-stopped))))
+                     (is (= {:nested-a 1, :nested-a-x2 2}
+                            @(:c (gx/system-value gx-stopped)))))
         graph {:a {:nested-a 1}
                :c {:gx/component 'k16.gx.beta.core-test/test-component}}
         gx-map (gx/normalize {:context context
