@@ -50,7 +50,7 @@
 
 (defn humanize-error
   [{:keys [node-key signal-key message]} & rest-of-error]
-  (let [rest-of-error (keep seq rest-of-error)]
+  (let [rest-of-error (filter seq rest-of-error)]
     (apply str (concat [(or message "Error") ": "
                         (tokenize "node = " node-key
                                   "signal = " signal-key)]
