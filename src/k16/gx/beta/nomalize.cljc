@@ -1,11 +1,11 @@
 (ns k16.gx.beta.nomalize
   #?(:cljs (:require-macros
-            [k16.gx.beta.context :refer [merge-err-ctx with-ctx *ctx*]]))
+            [k16.gx.beta.context :refer [merge-err-ctx *ctx*]]))
   (:require [clojure.walk :as walk]
             [k16.gx.beta.errors :as gx.err]
             [k16.gx.beta.impl :as impl]
             [k16.gx.beta.schema :as gx.schema]
-            #?(:clj [k16.gx.beta.context :refer [merge-err-ctx with-ctx *ctx*]])))
+            #?(:clj [k16.gx.beta.context :refer [merge-err-ctx *ctx*]])))
 
 (def locals #{'gx/ref 'gx/ref-keys})
 
@@ -122,14 +122,20 @@
   (form->runnable context form-def true))
 
 (defprotocol INodeNormalizer
-  (normalize [this]))
+  (normalize-node [this]))
 
 (def normalizable? (partial satisfies? INodeNormalizer))
 
+(defn empty-node-def
+  [context]
+  {:gx/value nil
+   :gx/state (-> context :initial-state)})
+
 (defrecord Static [context node-def]
   INodeNormalizer
-  (normalize [this]
-    (let [auto-signal (-> context :normalize :auto-signal)
+  (normalize-node [this]
+    (let [initial-state (-> context :normalize :intitial-state)
+          auto-signal (-> context :normalize :auto-signal)
           other-signals (-> context :signals keys set (disj auto-signal))
           runnable (form->runnable context (:node-def this))
           deps (:env runnable)
@@ -138,9 +144,11 @@
           resolved-props (->> deps
                               (map (fn [dep] [dep (list 'gx/ref dep)]))
                               (into {}))
-          normalized-node {:gx/processor processor
-                           :gx/deps deps
-                           :gx/resolved-props resolved-props}]
+
+          normalized-node (merge (empty-node-def context)
+                                 {:gx/processor processor
+                                  :gx/deps deps
+                                  :gx/resolved-props resolved-props})]
       (->> other-signals
            (map (fn [other-signal] [other-signal {:gx/processor :value}]))
            (into {auto-signal normalized-node})))))
@@ -214,7 +222,7 @@
 
 (defrecord Component [context node-def]
   INodeNormalizer
-  (normalize [this]
+  (normalize-node [this]
     (merge-err-ctx {:error-type :normalize-node-component}
       (let [node-def (:node-def this)
             context (:context this)
@@ -226,6 +234,7 @@
             [issues schema component]
             (some->> component-def
                      (merge (dissoc node-def :gx/component))
+                     (merge (empty-node-def context))
                      (push-down-props context)
                      (init-deps context)
                      (gx.schema/validate-component context))]
@@ -250,13 +259,37 @@
   (->> {:gx/component 'k16.gx.beta.nomalize/my-comp
         :gx/props {:foo '(gx/ref :a)}}
        (->Component default-context)
-       (normalize))
+       (normalize-node))
   )
 
 (defrecord ComponentConstructor [context node-def]
   INodeNormalizer
-  (normalize ^Component [{:keys [context node-def]}]
-    (->Component context node-def)))
+  (normalize-node ^Component [{:keys [context node-def]}]
+    (let [component-def (update node-def :gx/component
+                                #(->> %
+                                      (quiet-form->runnable context)
+                                      (run)))]
+      (->Component context component-def))))
+
+(comment
+  (defn my-comp-2 [a]
+    (println a)
+    {:gx/start {:gx/processor (fn [_] a)}
+     :gx/stop {:gx/processor identity}})
+
+  (with-ctx {:ctx {:a 1}}
+    (->> {:gx/component '(k16.gx.beta.nomalize/my-comp-2 (gx/ref :a))
+          :gx/props {:foo '(gx/ref :a)}}
+         (->ComponentConstructor default-context)
+         (normalize-node)
+        ;;  (normalize-node)
+        ;;  :gx/component
+        ;;  (quiet-form->runnable default-context)
+        ;;  (run)
+        ;;  (merge {:gx/props {:foo '(gx/ref :a)}})
+        ;;  (->Component default-context)
+        ;;  (normalize-node)
+         #_(normalize-node))))
 
 (defn function-call?
   [token]
@@ -295,11 +328,11 @@
   [context node-def]
   (->Static context node-def))
 
-(defn normalize-node
+(defn normalize-single-node
   [context node-def]
   (merge-err-ctx {:error-type :normalize-node}
-    (normalize (create-normalizer context node-def))))
+    (normalize-node (create-normalizer context node-def))))
 
 (defn normalize-graph
-  [{:keys [context graph] :as gx-map}]
-  (update gx-map graph update-vals (partial normalize-node context)))
+  [{:keys [context] :as gx-map}]
+  (update gx-map :graph update-vals (partial normalize-single-node context)))

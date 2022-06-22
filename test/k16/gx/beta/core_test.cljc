@@ -211,7 +211,7 @@
                                              (run-checks s)
                                              (done)))))))
 
-(deftest postwalk-evaluate-test
+#_(deftest postwalk-evaluate-test
   (let [env {:http/server {:port 8080}
              :db/url "jdbc://foo/bar/baz"}]
 

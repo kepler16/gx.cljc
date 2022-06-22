@@ -83,7 +83,9 @@
   "Given a graph definition and config, return a normalised form. Idempotent.
    This acts as the static analysis step of the graph.
    Returns tuple of error explanation (if any) and normamized graph."
-  [{:keys [context graph] :or {context default-context} :as gx-map}]
+  [{:keys [context graph]
+    :or {context gx.normalzie/default-context}
+    :as gx-map}]
   (let [config-issues (validate-context context)
         gx-map (assoc gx-map :context context)
         ;; remove previous normalization errors
@@ -205,16 +207,12 @@
    Static nodes just recalculates its values.
    If node does not support signal then do nothing."
   [{:keys [context graph initial-graph] :as gx-map} node-key signal-key]
-  (let [signal-config (-> context :signals signal-key)
+  (let [evaluate-fn (-> context :normalize :form-evaluator)
+        signal-config (-> context :signals signal-key)
         {:keys [deps-from from-states to-state]} signal-config
         node (get graph node-key)
-        node (if-let [rc (:gx/runtime-constructor node)]
-               ;; normalize using runtime contructor
-               (normalize-node-def
-                gx-map node-key
-                (-> node
-                    (assoc :gx/normalized? false)
-                    (merge {:gx/component (run rc)})))
+        node (if (gx.normalzie/normalizable? node)
+               (gx.normalzie/normalize-node node)
                node)
         node-state (:gx/state node)
         signal-def (get node signal-key)
@@ -246,7 +244,7 @@
         (ifn? processor)
         (let [props-result (if (fn? resolved-props-fn)
                              (run-props-fn resolved-props-fn dep-nodes-vals)
-                             (-postwalk-evaluate resolved-props))
+                             (evaluate-fn *ctx* resolved-props))
               [error data] (if-let [validate-error (props-validate-error
                                                     props-schema props-result)]
                              [validate-error]
@@ -326,13 +324,16 @@
     {:gx/start {:gx/processor (fn my-component [{:keys [props]}]
                                 (assoc props :foo foo))}})
 
+  (def component
+    {:gx/start {:gx/processor (fn my-component [{:keys [props]}]
+                                (assoc props :foo 1))}})
+
   (def graph {:a {:foo 1}
               :b '(get (gx/ref :a) :foo)
-              :c {:gx/component '(k16.gx.beta.core/create-component
-                                  (gx/ref :a))
+              :c {:gx/component 'k16.gx.beta.core/component
                   :gx/props {:b '(gx/ref :b)}}})
   (normalize {:graph graph})
-  (def _ (signal-sync {:graph graph} :gx/start))
+  @(signal {:graph graph} :gx/start)
 
   (signal-sync {:graph graph} :gx/start)
 
