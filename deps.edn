@@ -4,8 +4,7 @@
 
  :deps
  {funcool/promesa {:mvn/version "8.0.450"}
-  metosin/malli {:mvn/version "0.8.4"}
-  org.babashka/sci {:mvn/version "0.3.31"}}
+  metosin/malli {:mvn/version "0.8.4"}}
 
  :aliases
  {:dev {:extra-paths ["test"]}
