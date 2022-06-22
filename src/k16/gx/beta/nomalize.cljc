@@ -43,18 +43,22 @@
   For cljs, consider compiled components or sci-evaluator, would require allowing
   for swappable evaluation stategies. Point to docs, to inform how to swap evaluator,
   or alternative ways to specify functions (that get compiled) that can be used."
-  [props form]
-  (walk/postwalk
-   (fn [x]
-     (cond
-       (local-form? x)
-       (parse-local props x)
+  ([props form]
+   (postwalk-evaluate props form true))
+  ([props form parse-locals?]
+   (walk/postwalk
+    (fn [x]
+      (cond
+        (local-form? x)
+        (if parse-locals?
+          (parse-local props x)
+          x)
 
-       (and (seq? x) (ifn? (first x)))
-       (apply (first x) (rest x))
+        (and (seq? x) (ifn? (first x)))
+        (apply (first x) (rest x))
 
-       :else x))
-   form))
+        :else x))
+    form)))
 
 (def default-context
   {:initial-state :uninitialised
@@ -72,14 +76,15 @@
                        :deps-from :gx/start}}})
 
 (defprotocol IRunnableForm
-  (run [this] [this props]))
+  (initialize [this])
+  (run [this] [this props] [this props parse-locals?]))
 
 (defrecord RunnableForm [context env form]
   IRunnableForm
-  (run [this]
-    ((-> context :normalize :form-evaluator) *ctx* (:form this)))
+  (initialize [this]
+    ((-> this :context :normalize :form-evaluator) nil (:form this) false))
   (run [this props]
-    ((-> context :normalize :form-evaluator) props (:form this))))
+    ((-> this :context :normalize :form-evaluator) props (:form this))))
 
 (defn runnable? [v]
   (instance? RunnableForm v))
@@ -131,27 +136,35 @@
   {:gx/value nil
    :gx/state (-> context :initial-state)})
 
-(defrecord Static [context node-def]
+(defrecord Noop [context node-def]
+  INodeNormalizer
+  (normalize-node [this] (:node-def this)))
+
+(defrecord Signal [context node-def]
   INodeNormalizer
   (normalize-node [this]
-    (let [initial-state (-> context :normalize :intitial-state)
-          auto-signal (-> context :normalize :auto-signal)
-          other-signals (-> context :signals keys set (disj auto-signal))
-          runnable (form->runnable context (:node-def this))
-          deps (:env runnable)
+    (let [runnable (form->runnable context (:node-def this))
           processor (fn auto-signal-processor [{:keys [props]}]
                       (run runnable props))
+          deps (:env runnable)
           resolved-props (->> deps
                               (map (fn [dep] [dep (list 'gx/ref dep)]))
                               (into {}))
+          normalized-signal {:gx/processor processor
+                             :gx/deps deps
+                             :gx/resolved-props resolved-props}]
+      normalized-signal)))
 
-          normalized-node (merge (empty-node-def context)
-                                 {:gx/processor processor
-                                  :gx/deps deps
-                                  :gx/resolved-props resolved-props})]
+(defrecord Static [context node-def]
+  INodeNormalizer
+  (normalize-node [{:keys [context node-def]}]
+    (let [normalized-signal (normalize-node (->Signal context node-def))
+          auto-signal (-> context :normalize :auto-signal)
+          other-signals (-> context :signals keys set (disj auto-signal))]
       (->> other-signals
            (map (fn [other-signal] [other-signal {:gx/processor :value}]))
-           (into {auto-signal normalized-node})))))
+           (into {auto-signal normalized-signal})
+           (merge (empty-node-def context))))))
 
 (comment
   (->> {:port 8080}
@@ -229,7 +242,7 @@
             component-def (some->> node-def
                                    :gx/component
                                    (quiet-form->runnable context)
-                                   (run)
+                                   (initialize)
                                    (flatten-component context))
             [issues schema component]
             (some->> component-def
@@ -253,22 +266,29 @@
 
 (comment
   (def my-comp
-    {:gx/start {:gx/processor identity}
+    {:gx/start {:gx/processor identity
+                :gx/props {:a '(gx/ref :a)}}
      :gx/stop {:gx/processor identity}})
 
-  (->> {:gx/component 'k16.gx.beta.nomalize/my-comp
-        :gx/props {:foo '(gx/ref :a)}}
-       (->Component default-context)
-       (normalize-node))
+  (normalize-single-node
+   default-context
+   [:c #:gx{:component 'k16.gx.beta.nomalize/test-component-2
+            :props {:a '(gx/ref :a)}}])
+  (let [{:keys [env form]}
+        (->> #:gx{:component 'k16.gx.beta.nomalize/test-component-2
+                  :props {:a '(gx/ref :a)}}
+             (quiet-form->runnable default-context)
+             #_(run))]
+    (postwalk-evaluate nil form false))
   )
 
 (defrecord ComponentConstructor [context node-def]
   INodeNormalizer
-  (normalize-node ^Component [{:keys [context node-def]}]
+  (normalize-node [{:keys [context node-def]}]
     (let [component-def (update node-def :gx/component
                                 #(->> %
                                       (quiet-form->runnable context)
-                                      (run)))]
+                                      (initialize)))]
       (->Component context component-def))))
 
 (comment
@@ -291,14 +311,21 @@
         ;;  (normalize-node)
          #_(normalize-node))))
 
+(defrecord InlineComponent [context node-def]
+  INodeNormalizer
+  (normalize-node [{:keys [context node-def]}]
+    (merge (empty-node-def context)
+           (update-vals node-def #(normalize-node (->Signal context %))))))
+
 (defn function-call?
   [token]
   (and (list? token)
        (symbol? (first token))))
 
 (defn component-type
-  [_ {:gx/keys [component]}]
+  [{:gx/keys [component]}]
   (cond
+    (not component) ::inline-component
     (symbol? component) ::component-def
     (function-call? component) ::component-constructor
     :else ::unsupported-component))
@@ -310,9 +337,19 @@
 (defn node-type
   [context node-def]
   (cond
-    (:gx/component node-def) (component-type context node-def)
-    (normalized-node? context node-def) ::normalized-node
+    (:normalized? node-def) ::normalized-node
+
+    (when (map? node-def)
+      (let [component-keys (conj (set (keys (:signals context)))
+                                 :gx/component)
+            node-keys (keys node-def)]
+        (some component-keys node-keys))) (component-type node-def)
+
     :else ::static))
+
+(normalized-node? default-context
+                  #:gx{:start '(+ (gx/ref :z) 2),
+                       :stop '(println "stopping")})
 
 (defmulti create-normalizer node-type)
 
@@ -324,15 +361,104 @@
   [context node-def]
   (->ComponentConstructor context node-def))
 
+(defmethod create-normalizer ::inline-component
+  [context node-def]
+  (->InlineComponent context node-def))
+
 (defmethod create-normalizer ::static
   [context node-def]
   (->Static context node-def))
 
-(defn normalize-single-node
+(defmethod create-normalizer ::normalized-node
   [context node-def]
-  (merge-err-ctx {:error-type :normalize-node}
-    (normalize-node (create-normalizer context node-def))))
+  (->Noop context node-def))
+
+(defn normalize-single-node
+  [context [node-key node-def]]
+  (merge-err-ctx {:error-type :normalize-node
+                  :node-key node-key
+                  :node-contents node-def}
+    [node-key (-> (create-normalizer context node-def)
+                  (normalize-node)
+                  (assoc :normalized? true))]))
 
 (defn normalize-graph
-  [{:keys [context] :as gx-map}]
-  (update gx-map :graph update-vals (partial normalize-single-node context)))
+  [{:keys [context graph] :as gx-map}]
+  (merge-err-ctx {:error-type :normalize-node}
+    (let [normalized (->> graph
+                          (map (partial normalize-single-node context))
+                          (into {}))]
+      (assoc gx-map :graph normalized))))
+
+(comment
+  (def TestCoponentProps
+    [:map [:a [:map [:nested-a pos-int?]]]])
+
+;; this component is linked in fixtures/graphs.edn
+  (def test-component
+    {:gx/start {:gx/props-schema TestCoponentProps
+                :gx/processor
+                (fn [{:keys [props _value]}]
+                  (let [a (:a props)]
+                    (atom
+                     (assoc a :nested-a-x2 (* 2 (:nested-a a))))))}})
+
+  (def test-component-2
+    {:gx/start {:gx/props-schema TestCoponentProps
+                :gx/props {:a '(gx/ref :a)}
+                :gx/processor
+                (fn [{:keys [props _value]}]
+                  (let [a (:a props)]
+                    (atom
+                     (assoc a :some-value (+ 2 (:nested-a a))))))}})
+
+  (def graph {:a {:nested-a 1},
+              :z '(get (gx/ref :a) :nested-a),
+              :y '(println "starting"),
+              :b #:gx{:start '(+ (gx/ref :z) 2), :stop '(println "stopping")},
+              :c #:gx{:component 'k16.gx.beta.nomalize/test-component},
+              :x #:gx{:component 'k16.gx.beta.nomalize/test-component-2
+                      :props {:a '(gx/ref :b)}}})
+  (normalize-graph {:context default-context
+                    :graph graph})
+
+  (normalize-single-node
+   default-context
+   [:c #:gx{:component 'k16.gx.beta.nomalize/test-component
+            :props {:a '(gx/ref :a)}}])
+
+  (node-type default-context #:gx{:component 'k16.gx.beta.nomalize/test-component
+                                  :props {:a '(gx/ref :b)}})
+
+  (let [gx-map {:context default-context :graph graph}
+        context default-context
+        normalized (->> graph
+                        (map (partial normalize-single-node context))
+                        (into {}))]
+    (assoc gx-map
+           :graph normalized
+           :initial-graph graph))
+
+  (normalize-single-node
+   default-context [:a {:nested-a 1}])
+
+  (normalize-single-node
+   default-context [:z '(get (gx/ref :a) :nested-a)])
+
+  (normalize-single-node
+   default-context [:b #:gx{:start '(+ (gx/ref :z) 2),
+                            :stop '(println "stopping")}])
+
+  (node-type default-context
+             #:gx{:start '(+ (gx/ref :z) 2),
+                  :stop '(println "stopping")})
+
+  (node-type default-context '(get (gx/ref :a) :nested-a))
+
+  (normalize-node
+   (->Static default-context '(get (gx/ref :a) :nested-a)))
+
+  (type
+   (create-normalizer default-context
+                      #:gx{:component 'k16.gx.beta.nomalize/test-component}))
+  )

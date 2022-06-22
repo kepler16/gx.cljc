@@ -13,13 +13,6 @@
                      :refer [merge-err-ctx with-ctx *ctx*]]))
   (:import #?(:clj [clojure.lang ExceptionInfo])))
 
-(def locals #{'gx/ref 'gx/ref-keys})
-
-(defn local-form?
-  [form]
-  (and (seq? form)
-       (locals (first form))))
-
 (def default-context
   {:initial-state :uninitialised
    :normalize {;; signal, whish is default for static component nodes
@@ -243,7 +236,7 @@
         (ifn? processor)
         (let [props-result (if (fn? resolved-props-fn)
                              (run-props-fn resolved-props-fn dep-nodes-vals)
-                             (evaluate-fn *ctx* resolved-props))
+                             (evaluate-fn dep-nodes-vals resolved-props))
               [error data] (if-let [validate-error (props-validate-error
                                                     props-schema props-result)]
                              [validate-error]
@@ -290,55 +283,14 @@
 
            :else gxm))))))
 
-(defn signal-sync
-  ([gx-map signal-key]
-   (signal-sync gx-map signal-key #{}))
-  ([gx-map signal-key priority-selector]
-   (let [gx-map (normalize (dissoc gx-map :failures))
-         [error sorted] (topo-sort gx-map signal-key priority-selector)
-         gx-map (if error
-                  (update gx-map :failures conj error)
-                  gx-map)]
-     (if (seq (:failures gx-map))
-       gx-map
-       (loop [gxm gx-map
-              sorted sorted]
-         (cond
-           (seq sorted)
-           (let [node-key (first sorted)
-                 node (with-ctx {:ctx (system-value gxm)
-                                 :err {:error-type :node-signal
-                                       :signal-key signal-key
-                                       :node-key node-key}}
-                        (node-signal gxm node-key signal-key))
-                 next-gxm (assoc-in gxm [:graph node-key] node)]
-             (recur (merge-node-failure next-gxm node) (rest sorted)))
-
-           :else gxm))))))
-
 (comment
-  (defn create-component
-    [foo]
-    (println foo)
-    {:gx/start {:gx/processor (fn my-component [{:keys [props]}]
-                                (assoc props :foo foo))}})
+  (def graph {:a {:nested-a 1},
+              :z '(get (gx/ref :a) :nested-a),
+              :y '(println "starting"),
+              :b #:gx{:start '(+ (gx/ref :z) 2), :stop '(println "stopping")},
+              :c #:gx{:component 'k16.gx.beta.core-test/test-component},
+              :x #:gx{:component 'k16.gx.beta.core-test/test-component-2}})
 
-  (def component
-    {:gx/start {:gx/processor (fn my-component [{:keys [props]}]
-                                (assoc props :foo 1))}})
-
-  (def graph {:a {:foo 1}
-              :b '(get (gx/ref :a) :foo)
-              :c {:gx/component 'k16.gx.beta.core/component
-                  :gx/props {:b '(gx/ref :b)}}})
-  (normalize {:graph graph})
-  @(signal {:graph graph} :gx/start)
-
-  (signal-sync {:graph graph} :gx/start)
-
-  (def rr (form->runnable '(k16.gx.beta.core/create-component (gx/ref :a))))
-  (run rr {:a {:foo 1}})
-
-  (create-component {:foo 1})
-  (-postwalk-evaluate {:a {:foo 1}} '(get (gx/ref :a) :foo))
+  (normalize {:context default-context
+              :graph graph})
   )
