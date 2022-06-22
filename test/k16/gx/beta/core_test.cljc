@@ -13,7 +13,7 @@
 ;; this component is linked in fixtures/graphs.edn
 (def test-component
   {:gx/start {:gx/props-schema TestCoponentProps
-              :gx/props {:a (gx/ref :a)}
+              :gx/props {:a '(gx/ref :a)}
               :gx/processor
               (fn [{:keys [props _value]}]
                 (let [a (:a props)]
@@ -22,7 +22,7 @@
 
 (def test-component-2
   {:gx/start {:gx/props-schema TestCoponentProps
-              :gx/props {:a (gx/ref :a)}
+              :gx/props {:a '(gx/ref :a)}
               :gx/processor
               (fn [{:keys [props _value]}]
                 (let [a (:a props)]
@@ -38,7 +38,8 @@
   (let [graph (load-config)
         gx-map (gx/normalize {:context context
                               :graph graph})]
-    (gx.schema/validate-graph gx-map))
+    gx-map
+    #_(gx/signal-sync gx-map :gx/start))
   )
 
 (deftest graph-tests
@@ -214,7 +215,7 @@
   (let [env {:http/server {:port 8080}
              :db/url "jdbc://foo/bar/baz"}]
 
-    (t/are [arg result] (= result (gx/postwalk-evaluate env arg))
+    (t/are [arg result] (= result (gx/-postwalk-evaluate env arg))
       (gx/ref :http/server) {:port 8080}
 
       (gx/ref-keys [:http/server :db/url]) {:http/server {:port 8080}

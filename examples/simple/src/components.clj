@@ -11,7 +11,11 @@
     ;; :value - current node's value
     ;; data returned by handler is a node's new value
     :gx/processor
+<<<<<<< Updated upstream
     (fn start-router [{{:keys [routes database]} :props}]
+=======
+    (fn start-router [{{:keys [routes database]} :props :as params}]
+>>>>>>> Stashed changes
       (reitit-ring/router
        routes {:data
                ;; inject our database via middleware

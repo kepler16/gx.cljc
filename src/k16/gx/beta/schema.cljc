@@ -53,7 +53,7 @@
    [:gx/normalized? {:optional true} boolean?]
    [:gx/value {:optional true} any?]])
 
-(defn create-component-schema
+(defn normalized-node-schema
   [context]
   (let [signals (->> context
                      :signals
@@ -64,16 +64,21 @@
     (mu/closed-schema
      (mu/merge ?NormalizedNodeDefinition signals))))
 
+(defn normalized?
+  [context component]
+  (m/validate (normalized-node-schema context) component))
+
 (defn validate-component
   [context component]
-  (let [schema (create-component-schema context)]
+  (let [schema (normalized-node-schema context)]
     [(->> component
           (m/explain schema)
           (me/humanize))
-     (m/-form schema)]))
+     (m/-form schema)
+     component]))
 
 (defn validate-graph
   [{:keys [graph context]}]
-  (let [graph-schema [:map-of keyword? (create-component-schema context)]]
+  (let [graph-schema [:map-of keyword? (normalized-node-schema context)]]
     (me/humanize
      (m/explain graph-schema graph))))
