@@ -138,9 +138,11 @@
 
 (defn error-message
   [ex]
-  (->> ex
-       (iterate ex-cause)
-       (take-while some?)
-       (mapv ex-message)
-       (interpose "; ")
-       (apply str)))
+  (if (string? ex)
+    ex
+    (->> ex
+         (iterate ex-cause)
+         (take-while some?)
+         (mapv ex-message)
+         (interpose "; ")
+         (apply str))))

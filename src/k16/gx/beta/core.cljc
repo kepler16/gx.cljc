@@ -390,7 +390,7 @@
   [props-fn arg-map]
   (try
     (props-fn arg-map)
-    (catch #?(:clj Exception :cljs js/Error) e
+    (catch #?(:clj Throwable :cljs :default) e
       (gx.err/throw-gx-err "Props function error"
                            {:ex-message (impl/error-message e)
                             :args arg-map}))))
@@ -399,7 +399,7 @@
   [processor arg-map]
   (try
     [nil (processor arg-map)]
-    (catch #?(:clj Throwable :cljs js/Error) e
+    (catch #?(:clj Throwable :cljs :default) e
       [(gx.err/gx-err-data "Signal processor error"
                            {:ex-message (impl/error-message e)
                             :ex (or (ex-data e) e)
