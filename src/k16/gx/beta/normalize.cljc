@@ -185,12 +185,6 @@
                node-def)
     node-def))
 
-(defn parse-node-def
-  [context node-def]
-  (some->> node-def
-           (form->runnable context)
-           (parse)))
-
 (defn init-props
   [context component-def]
   (update-vals
@@ -354,10 +348,6 @@
     (symbol? component) ::component-def
     (function-call? component) ::component-constructor
     :else ::unsupported-component))
-
-(defn normalized-node?
-  [context node-def]
-  (gx.schema/normalized? context node-def))
 
 (defn node-type
   [context node-def]

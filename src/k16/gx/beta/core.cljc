@@ -1,7 +1,7 @@
 (ns k16.gx.beta.core
   (:refer-clojure :exclude [ref])
   #?(:cljs (:require-macros
-            [k16.gx.beta.context :refer [merge-err-ctx with-ctx *ctx*]]))
+            [k16.gx.beta.context :refer [merge-err-ctx with-ctx]]))
   (:require [malli.core :as m]
             [malli.error :as me]
             [promesa.core :as p]
@@ -10,7 +10,7 @@
             [k16.gx.beta.schema :as gx.schema]
             [k16.gx.beta.errors :as gx.err]
             #?(:clj [k16.gx.beta.context
-                     :refer [merge-err-ctx with-ctx *ctx*]]))
+                     :refer [merge-err-ctx with-ctx]]))
   (:import #?(:clj [clojure.lang ExceptionInfo])))
 
 (def default-context
