@@ -8,6 +8,9 @@
   {:l2/start {:gx/processor identity}
    :l2/stop {:gx/processor identity}})
 
+(def nested-level-1
+  '(println "sdf"))
+
 (def ^:export nested-level-1
   {:gx/component nested-level-2
    :gx/signal-mapping {:l1/start :l2/start
@@ -21,10 +24,10 @@
                        :signal-mapping
                        {:gx/start :l1/start
                         :gx/stop :l1/stop})]
-    (gx/flatten-component context root))
+    (gx/flatten-component context root)))
   ;; => #:gx{:start #:gx{:processor #function[clojure.core/identity]},
   ;;         :stop #:gx{:processor #function[clojure.core/identity]}}
-)
+
 
 (deftest nested-component-resolve-test
   (let [resolved (gx.norm/normalize-node (gx.norm/->Component

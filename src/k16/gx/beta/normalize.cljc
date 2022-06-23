@@ -123,67 +123,66 @@
   [context form-def]
   (form->runnable context form-def true))
 
-(defprotocol INodeNormalizer
-  (normalize-node [this]))
-
-(defn normalizable? [v]
-  (satisfies? INodeNormalizer v))
-
-(defn empty-node-def
+(defn empty-node-instance
   [context]
   {:gx/value nil
    :gx/state (-> context :initial-state)})
 
-(defrecord Noop [context node-def]
-  INodeNormalizer
-  (normalize-node [this] (:node-def this)))
+(defn deps->resolved-props [deps]
+  (->> deps
+       (map (fn [dep] [dep (list 'gx/ref dep)]))
+       (into {})))
 
-(defrecord Signal [context node-def]
-  INodeNormalizer
-  (normalize-node [this]
-    (let [runnable (form->runnable context (:node-def this))
-          processor (fn auto-signal-processor [{:keys [props]}]
-                      (run runnable props))
-          deps (:env runnable)
-          resolved-props (->> deps
-                              (map (fn [dep] [dep (list 'gx/ref dep)]))
-                              (into {}))
-          normalized-signal {:gx/processor processor
-                             :gx/deps deps
-                             :gx/resolved-props resolved-props}]
-      normalized-signal)))
+(defn form->signal-def [context form]
+  (let [runnable (form->runnable context form)
+        processor (fn auto-signal-processor [{:keys [props]}]
+                    (run runnable props))
+        deps (:env runnable)
+        normalized-signal {:gx/processor processor
+                           :gx/deps deps}]
+    normalized-signal))
 
-(defrecord Static [context node-def]
-  INodeNormalizer
-  (normalize-node [{:keys [context node-def]}]
-    (let [normalized-signal (normalize-node (->Signal context node-def))
-          auto-signal (-> context :normalize :auto-signal)
-          other-signals (-> context :signals keys set (disj auto-signal))]
-      (->> other-signals
-           (map (fn [other-signal] [other-signal {:gx/processor :value}]))
-           (into {auto-signal normalized-signal})
-           (merge (empty-node-def context))))))
+(defn normalize-signal [context signal-def]
+  (let [processor-defined? (:gx/processor signal-def)
+        partial-signal (if processor-defined?
+                         signal-def
+                         (form->signal-def context signal-def))
+
+        {:gx/keys [deps processor resolved-props]
+         :or {deps #{}}}
+        partial-signal
+
+        resolved-props (or resolved-props (deps->resolved-props deps))]
+
+    (merge
+     (when processor-defined?
+       signal-def)
+     {:gx/processor processor
+      :gx/deps deps
+      :gx/resolved-props resolved-props})))
+
+(comment
+  (def s1
+    (normalize-signal
+     default-context
+     {:gx/processor (fn [{:keys [props]}] props)}))
+  ((:gx/processor s1) {:props {:a 1}}))
+
+(defn normalize-sm-auto [context sm-def]
+  (let [normalized-signal (normalize-signal context sm-def)
+        auto-signal (-> context :normalize :auto-signal)
+        other-signals (-> context :signals keys set (disj auto-signal))]
+    (->> other-signals
+         (map (fn [other-signal] [other-signal {:gx/processor :value}]))
+         (into {auto-signal normalized-signal})
+         (merge (empty-node-instance context)))))
 
 (comment
   (->> {:port 8080}
-       (->Static default-context)
-       (normalize))
+       (normalize-sm-auto default-context))
 
   (->> {:port '(gx/ref :z)}
-       (->Static default-context)
-       (normalize)))
-
-(defn push-down-props
-  [{{:keys [props-signals]} :normalize} {:gx/keys [props] :as node-def}]
-  (if (and (seq props) (seq props-signals))
-    (reduce-kv (fn [m k v]
-                 (if (and (contains? props-signals k)
-                          (not (:gx/props v)))
-                   (assoc-in m [k :gx/props] props)
-                   m))
-               node-def
-               node-def)
-    node-def))
+       (normalize-sm-auto default-context)))
 
 (defn init-props
   [context component-def]
@@ -205,8 +204,7 @@
   (init-props default-context
               {:gx/start {:gx/props-fn 'k16.gx.beta.normalize/my-props-fn
                           :gx/props '{:a (gx/ref :b)}}
-               :gx/value {}})
-  )
+               :gx/value {}}))
 
 (defn remap-signals
   [from-signals to-signals]
@@ -243,36 +241,44 @@
                (into root-component))
           (dissoc current :gx/signal-mapping))))))
 
-(defrecord Component [context node-def]
-  INodeNormalizer
-  (normalize-node [this]
-    (merge-err-ctx {:error-type :normalize-node-component}
-      (let [node-def (:node-def this)
-            context (:context this)
-            component-def (:gx/component node-def)
-            parsed-component (some->> component-def
-                                      (quiet-form->runnable context)
-                                      (parse)
-                                      (flatten-component context))
-            [issues schema component]
-            (some->> parsed-component
-                     (impl/deep-merge node-def)
-                     (merge (empty-node-def context))
-                     (push-down-props context)
-                     (init-props context)
-                     (gx.schema/validate-component context))]
-        (cond
-          (not component)
-          (gx.err/throw-gx-err "Component could not be resolved"
-                               {:component component-def})
+(defn push-down-props
+  [{{:keys [props-signals]} :normalize} {:gx/keys [props] :as node-def}]
+  (if (and (seq props) (seq props-signals))
+    (reduce-kv (fn [m k v]
+                 (if (and (contains? props-signals k)
+                          (not (:gx/props v)))
+                   (assoc-in m [k :gx/props] props)
+                   m))
+               node-def
+               node-def)
+    node-def))
 
-          (seq issues)
-          (gx.err/throw-gx-err "Component schema error"
-                               {:component parsed-component
-                                :component-schema schema
-                                :schema-error (set issues)})
+(defn normalize-sm-with-component [context sm-def]
+  (merge-err-ctx {:error-type :normalize-node-component}
+    (let [component-def (:gx/component sm-def)
+          parsed-component (some->> component-def
+                                    (quiet-form->runnable context)
+                                    (parse)
+                                    (flatten-component context))
+          [issues schema component]
+          (some->> parsed-component
+                   (impl/deep-merge sm-def)
+                   (merge (empty-node-instance context))
+                   (push-down-props context)
+                   (init-props context)
+                   (gx.schema/validate-component context))]
+      (cond
+        (not component)
+        (gx.err/throw-gx-err "Component could not be resolved"
+                             {:component component-def})
 
-          :else component)))))
+        (seq issues)
+        (gx.err/throw-gx-err "Component schema error"
+                             {:component parsed-component
+                              :component-schema schema
+                              :schema-error (set issues)})
+
+        :else component))))
 
 (comment
   (defn ^:export my-props-fn
@@ -288,7 +294,7 @@
                   (atom props))}})
 
   (try
-    (normalize-single-node
+    (normalize-node
      default-context
      [:comp {:gx/component 'k16.gx.beta.normalize/my-new-component
              :gx/start {:gx/props-fn 'k16.gx.beta.normalize/my-props-fn
@@ -296,109 +302,120 @@
     (catch clojure.lang.ExceptionInfo e
       (ex-data e)))
 
-  (node-type
+  (sm-def-type
    default-context
-   {:gx/component 'k16.gx.beta.normalize/my-new-component})
-  )
+   {:gx/component 'k16.gx.beta.normalize/my-new-component}))
 
-(defrecord ComponentConstructor [context node-def]
-  INodeNormalizer
-  (normalize-node [{:keys [context node-def]}]
-    (let [component-def (update node-def :gx/component
-                                #(->> %
-                                      (quiet-form->runnable context)
-                                      (parse)))]
-      (->Component context component-def))))
+(defn normalize-sm-inline [context sm-def]
+  (merge (empty-node-instance context)
+         (update-vals sm-def #(normalize-signal context %))))
+
+(defn context->defined-signals [context]
+  (set (keys (:signals context))))
+
+(defn normal-sm-def? [context sm-def]
+  (and (map? sm-def)
+       (let [sm-valid-keys (into #{:gx/component}
+                                 (context->defined-signals context))
+             sm-def-keys (keys sm-def)]
+         (some sm-valid-keys sm-def-keys))))
+
+(defn normalize-sm [context sm-def]
+  (let [;; is this sm-def in normal form
+        normal? (normal-sm-def? context sm-def)
+
+        partial-sm (if normal?
+                     sm-def
+                     (normalize-sm-auto context sm-def))
+
+        ;; collect and normalise component if once exists
+        ;; recursively calls normalize-sm
+        component (let [component (:gx/component partial-sm)
+                        component (if (symbol? component)
+                                    (resolve-symbol component)
+                                    component)]
+                    (when component
+                      (let [signal-mapping (or (:gx/signal-mapping partial-sm)
+                                               (:signal-mapping context))]
+                        (normalize-sm (merge context {:signal-mapping signal-mapping})
+                                      component))))
+
+        ;; merge component
+        sm-with-component (impl/deep-merge
+                           component
+                           partial-sm)
+
+        top-level-props (:gx/props sm-with-component)
+
+        ;; select signal definitions
+        signal-defs (select-keys sm-with-component (context->defined-signals context))
+        ;; normalise signal definitions
+        normalized-signals (update-vals signal-defs #(normalize-signal context %))
+
+        sm (merge
+            (empty-node-instance context)
+            ;; include the component heritage
+            (when component
+              {:gx/component
+               ;; dissoc the empty node keys so that coming
+               ;; back on the normalise step doesnt include them
+               (apply dissoc component (-> context
+                                           empty-node-instance
+                                           keys))})
+            sm-with-component
+            normalized-signals)]
+     (impl/deep-merge
+      component
+      sm)))
 
 (comment
-  (defn my-comp-2 [a]
-    (println a)
-    {:gx/start {:gx/processor (fn [_] a)}
-     :gx/stop {:gx/processor identity}})
+  (context->defined-signals default-context)
+  (normalize-sm default-context {}))
 
-  (with-ctx {:ctx {:a 1}}
-    (->> {:gx/component '(k16.gx.beta.nomalize/my-comp-2 (gx/ref :a))
-          :gx/props {:foo '(gx/ref :a)}}
-         (->ComponentConstructor default-context)
-         (normalize-node)
-        ;;  (normalize-node)
-        ;;  :gx/component
-        ;;  (quiet-form->runnable default-context)
-        ;;  (run)
-        ;;  (merge {:gx/props {:foo '(gx/ref :a)}})
-        ;;  (->Component default-context)
-        ;;  (normalize-node)
-         #_(normalize-node))))
-
-(defrecord InlineComponent [context node-def]
-  INodeNormalizer
-  (normalize-node [{:keys [context node-def]}]
-    (merge (empty-node-def context)
-           (update-vals node-def #(normalize-node (->Signal context %))))))
-
-(defn function-call?
-  [token]
-  (and (list? token)
-       (symbol? (first token))))
-
-(defn component-type
-  [{:gx/keys [component]}]
+(defn- sm-def-type
+  [context sm-def]
   (cond
-    (not component) ::inline-component
-    (symbol? component) ::component-def
-    (function-call? component) ::component-constructor
-    :else ::unsupported-component))
+    ;; (:gx/normalized? sm-def) ::normalized-sm
 
-(defn node-type
+    (normal-sm-def? context sm-def)
+    (let [{:gx/keys [component]} sm-def]
+      (cond
+        (nil? component) ::inline-sm
+        (symbol? component) ::component-def
+        ;; (function-call? component) ::component-constructor
+        :else ::unsupported-component))
+
+    :else ::auto-node))
+
+(defmulti normalize-sm' sm-def-type)
+
+(defmethod normalize-sm' ::component-def
+  [context sm-def]
+  (normalize-sm-with-component context sm-def))
+
+(defmethod normalize-sm' ::inline-sm
+  [context sm-def]
+  (normalize-sm-inline context sm-def))
+
+(defmethod normalize-sm' ::auto-sm
+  [context sm-def]
+  (normalize-sm-auto context sm-def))
+
+(defmethod normalize-sm' ::normalized-sm
   [context node-def]
-  (cond
-    (:gx/normalized? node-def) ::normalized-node
+  node-def)
 
-    (when (map? node-def)
-      (let [component-keys (conj (set (keys (:signals context)))
-                                 :gx/component)
-            node-keys (keys node-def)]
-        (some component-keys node-keys))) (component-type node-def)
-
-    :else ::static))
-
-(defmulti create-normalizer node-type)
-
-(defmethod create-normalizer ::component-def
-  [context node-def]
-  (->Component context node-def))
-
-(defmethod create-normalizer ::component-constructor
-  [context node-def]
-  (->ComponentConstructor context node-def))
-
-(defmethod create-normalizer ::inline-component
-  [context node-def]
-  (->InlineComponent context node-def))
-
-(defmethod create-normalizer ::static
-  [context node-def]
-  (->Static context node-def))
-
-(defmethod create-normalizer ::normalized-node
-  [context node-def]
-  (->Noop context node-def))
-
-(defn normalize-single-node
-  [context [node-key node-def]]
+(defn normalize-node
+  [context [node-key sm-def]]
   (merge-err-ctx {:error-type :normalize-node
                   :node-key node-key
-                  :node-contents node-def}
-    [node-key (if (:gx/normalized? node-def)
-                node-def
-                (-> (create-normalizer context node-def)
-                    (normalize-node)
-                    (assoc :gx/normalized? true)))]))
+                  :node-contents sm-def}
+    [node-key (normalize-sm' context sm-def)]))
 
 (defn normalize-graph
   [{:keys [context graph] :as gx-map}]
   (merge-err-ctx {:error-type :normalize-node}
     (let [normalized (->> graph
-                          (map (partial normalize-single-node context))
+                          (map (partial normalize-node context))
                           (into {}))]
       (assoc gx-map :graph normalized))))
