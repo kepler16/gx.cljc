@@ -2,6 +2,7 @@
   (:require [k16.gx.beta.core :as gx]
             [k16.gx.beta.registry :as gx.reg :include-macros true]
             [k16.gx.beta.schema :as gx.schema]
+            [k16.gx.beta.normalize :as gx.norm]
             #?(:clj [clojure.test :as t :refer [deftest is testing]])
             #?@(:cljs [[cljs.test :as t :refer-macros [deftest is testing]]
                        [promesa.core :as p]
@@ -32,7 +33,7 @@
 (defn load-config []
   (gx.reg/load-graph! "test/fixtures/graph.edn"))
 
-(def context gx/default-context)
+(def context gx.norm/default-context)
 
 (comment
   (let [graph (load-config)
@@ -105,7 +106,8 @@
 (deftest failed-normalization-test
   (let [custom-context {:initial-state :uninitialised
                         :normalize {:auto-signal :custom/start
-                                    :props-signals #{:custom/start}}
+                                    :props-signals #{:custom/start}
+                                    :form-evaluator gx.norm/postwalk-evaluate}
                         :signals
                         {:custom/start {:from-states #{:stopped :uninitialized}
                                         :to-state :started}
@@ -157,6 +159,12 @@
                 (run-checks gx-started gx-stopped)
                 (done))))))
 
+(comment
+  (let [graph {:a {:nested-a 1}
+               :c {:gx/component 'k16.gx.beta.core-test/test-component}}]
+    (gx/normalize {:context context
+                   :graph graph})))
+
 (deftest subsequent-normalizations-test
   (let [gx-norm-1 (gx/normalize {:context context
                                  :graph (load-config)})
@@ -186,12 +194,12 @@
             :signal-key :gx/start}
            failure))))
 
-(defn my-props-fn
+(defn ^:export my-props-fn
   [{:keys [a]}]
   (assoc a :full-name
          (str (:name a) " " (:last-name a))))
 
-(def my-new-component
+(def ^:export my-new-component
   {:gx/start {:gx/props (gx/ref :a)
               :gx/processor
               (fn my-new-component-handler
@@ -201,10 +209,14 @@
 (deftest props-fn-test
   (let [run-checks
         (fn [gx-started]
-          (is (= @(:comp (gx/system-value gx-started))
-                 {:name "John" :last-name "Doe" :full-name "John Doe"})))
-        graph (gx.reg/load-graph! "test/fixtures/props_fn.edn")
-        gx-map {:context context :graph graph}
+          (is (= {:name "John" :last-name "Doe" :full-name "John Doe"}
+                 @(:comp (gx/system-value gx-started)))))
+        graph {:a {:name "John"
+                   :last-name "Doe"}
+               :comp
+               {:gx/component 'k16.gx.beta.core-test/my-new-component
+                :gx/start {:gx/props-fn 'k16.gx.beta.core-test/my-props-fn}}}
+        gx-map {:graph graph}
         started (gx/signal gx-map :gx/start)]
     #?(:clj (run-checks @started)
        :cljs (t/async done (p/then started (fn [s]
@@ -245,8 +257,7 @@
                  :d '(throw "starting")
                  :b {:gx/start '(+ (gx/ref :z) 2)
                      :gx/stop '(println "stopping")}}
-          gx-norm (gx/normalize {:graph graph
-                                 :context gx/default-context})]
+          gx-norm (gx/normalize {:graph graph})]
       (is (= {:error-type :normalize-node,
               :node-key :d,
               :node-contents '(throw "starting"),
@@ -260,8 +271,7 @@
                  :d '(println "starting")
                  :b {:gx/start '(+ (gx/ref :z) 2)
                      :gx/stop '(some-not-found-symbol "stopping")}}
-          gx-norm (gx/normalize {:graph graph
-                                 :context gx/default-context})
+          gx-norm (gx/normalize {:graph graph})
           failure (-> gx-norm :failures first)]
       (is (= {:error-type :normalize-node,
               :node-key :b,
@@ -281,8 +291,7 @@
                     :c '(inc :bar)
                     :b {:gx/start '(/ (gx/ref :z) 0)
                         :gx/stop '(println "stopping")}}
-             gx-norm (gx/normalize {:graph graph
-                                    :context gx/default-context})
+             gx-norm (gx/normalize {:graph graph})
              expect (list {:internal-data
                            {:ex-message "Divide by zero",
                             :args {:props {:z 1}, :value nil}},
@@ -350,7 +359,7 @@
                   :c '(gx/ref :b)
                   :d '(gx/ref :c)}
            gx-map {:graph graph
-                   :context gx/default-context}
+                   :context gx.norm/default-context}
            expect (list {:internal-data {:dep-node-keys '(:c)},
                          :message "Failure in dependencies",
                          :error-type :node-signal,
@@ -429,8 +438,7 @@
 (deftest component-processor-unresolved-test
   (testing "should resolve all components during normalization stage"
     (let [graph {:c {:gx/component 'k16.gx.beta.core-test/non-existent}}
-          gx-map (gx/normalize {:graph graph
-                                :context context})]
+          gx-map (gx/normalize {:graph graph})]
       (is (= {:message "Component could not be resolved",
               :error-type :normalize-node-component,
               :node-key :c,
@@ -441,8 +449,7 @@
              (first (:failures gx-map)))))
 
     (let [graph {:c {:gx/component 'k16.gx.beta.core-test/invalid-component}}
-          gx-map (gx/normalize {:graph graph
-                                :context context})]
+          gx-map (gx/normalize {:graph graph})]
       (is (= {:message "Component schema error",
               :error-type :normalize-node-component,
               :node-key :c,
@@ -457,8 +464,7 @@
                  (update :internal-data dissoc :component-schema)))))
 
     (let [graph {:c {:gx/component 'k16.gx.beta.core-test/invalid-component-2}}
-          gx-map (gx/normalize {:graph graph
-                                :context context})]
+          gx-map (gx/normalize {:graph graph})]
       (is (= {:message "Component schema error",
               :error-type :normalize-node-component,
               :node-key :c,
@@ -533,7 +539,8 @@
 (deftest validate-context-test
   (let [context {:initial-state :uninitialised
                  :normalize {:auto-signal :gx/start
-                             :props-signals #{:gx/start}}
+                             :props-signals #{:gx/start}
+                             :form-evaluator gx.norm/postwalk-evaluate}
                  :signal-mapping {}
                  :signals {:gx/start {:from-states #{:stopped :uninitialised}
                                       :to-state :started

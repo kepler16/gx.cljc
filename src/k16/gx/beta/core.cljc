@@ -5,7 +5,7 @@
   (:require [malli.core :as m]
             [malli.error :as me]
             [promesa.core :as p]
-            [k16.gx.beta.nomalize :as gx.normalzie]
+            [k16.gx.beta.normalize :as gx.normalzie]
             [k16.gx.beta.impl :as impl]
             [k16.gx.beta.schema :as gx.schema]
             [k16.gx.beta.errors :as gx.err]
@@ -85,9 +85,9 @@
                   (not (:initial-graph gx-map)) (assoc :initial-graph graph)
                   :always (dissoc :failures))]
     (try
-      (cond
-        config-issues (throw (ex-info "GX Context error" config-issues))
-        :else (gx.normalzie/normalize-graph gx-map'))
+      (if config-issues
+        (throw (ex-info "GX Context error" config-issues))
+        (gx.normalzie/normalize-graph gx-map'))
       (catch ExceptionInfo e
         (update gx-map' :failures conj (gx.err/ex->gx-err-data e))))))
 
@@ -198,7 +198,7 @@
    can restart itself by taking recalculated properties from deps.
    Static nodes just recalculates its values.
    If node does not support signal then do nothing."
-  [{:keys [context graph initial-graph] :as gx-map} node-key signal-key]
+  [{:keys [context graph initial-graph]} node-key signal-key]
   (let [evaluate-fn (-> context :normalize :form-evaluator)
         signal-config (-> context :signals signal-key)
         {:keys [deps-from from-states to-state]} signal-config

@@ -17,6 +17,7 @@
    [:signal-mapping {:optional true} [:map-of keyword? keyword?]]
    [:normalize
     [:map
+     [:form-evaluator fn?]
      [:auto-signal keyword?]
      [:props-signals [:set keyword?]]]]
    [:signals
@@ -36,10 +37,11 @@
   [:map
    gx-props
    [:gx/processor ifn?]
-   [:gx/props-schema {:optional true} any?]
+   [:gx/props-schema {:optional true} some?]
+   [:gx/props-fn {:optional true} some?]
    [:gx/resolved-props-fn {:optional true} [:maybe fn?]]
    [:gx/deps {:optional true} coll?]
-   [:gx/resolved-props {:optional true} [:maybe any?]]])
+   [:gx/resolved-props {:optional true} [:maybe some?]]])
 
 (def ?NormalizedNodeDefinition
   [:map

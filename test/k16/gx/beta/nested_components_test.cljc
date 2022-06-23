@@ -1,5 +1,6 @@
 (ns k16.gx.beta.nested-components-test
   (:require [k16.gx.beta.core :as gx]
+            [k16.gx.beta.normalize :as gx.norm]
             #?(:clj [clojure.test :as t :refer [deftest is]])
             #?@(:cljs [[cljs.test :as t :refer-macros [deftest is]]])))
 
@@ -26,12 +27,16 @@
 )
 
 (deftest nested-component-resolve-test
-  (let [resolved (gx/resolve-component (assoc gx/default-context
-                                              :signal-mapping
-                                              {:gx/start :l1/start
-                                               :gx/stop :l1/stop})
-                                       'k16.gx.beta.nested-components-test/root)]
-    (is (= #:gx{:component
+  (let [resolved (gx.norm/normalize-node (gx.norm/->Component
+                                          (assoc gx.norm/default-context
+                                                 :signal-mapping
+                                                 {:gx/start :l1/start
+                                                  :gx/stop :l1/stop})
+                                          {:gx/component
+                                           'k16.gx.beta.nested-components-test/root}))]
+    (is (= #:gx{:value nil,
+                :state :uninitialised,
+                :component
                 #:gx{:component
                      #:l2{:start #:gx{:processor identity},
                           :stop #:gx{:processor identity}},
