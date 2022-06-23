@@ -203,9 +203,7 @@
         signal-config (-> context :signals signal-key)
         {:keys [deps-from from-states to-state]} signal-config
         node (get graph node-key)
-        node (if (gx.normalzie/normalizable? node)
-               (gx.normalzie/normalize-node node)
-               node)
+        node (gx.normalzie/normalize-node context node)
         node-state (:gx/state node)
         signal-def (get node signal-key)
         {:gx/keys [processor props-schema resolved-props]} signal-def
@@ -292,5 +290,4 @@
               :x #:gx{:component 'k16.gx.beta.core-test/test-component-2}})
 
   (normalize {:context default-context
-              :graph graph})
-  )
+              :graph graph}))
