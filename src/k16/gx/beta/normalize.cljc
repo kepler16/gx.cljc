@@ -329,22 +329,30 @@
 
 (declare normalize-sm)
 
-(defn normalize-component-in-context [context component signal-mapping]
-  (let [signal-mapping (set/rename-keys
+(defn normalize-component-in-context [context normal-sm-def]
+  (tap> {:direction :down
+         :node (:node normal-sm-def)
+         :def normal-sm-def
+         :context context
+         :c-signals (:signals context)
+         :c-signal-mapping (:signal-mapping context)})
+
+  (let [{:gx/keys [component signal-mapping]} normal-sm-def
+
+        signal-mapping (set/rename-keys
                         (:signal-mapping context)
                         signal-mapping)
 
           ;; collect and normalise component if once exists
           ;; recursively calls normalize-sm
         component
-        (when component
-          (normalize-sm
-           (merge
-            context
-            {:signals (-> (:signals context)
-                          (set/rename-keys (:gx/signal-mapping component)))
-             :signal-mapping signal-mapping})
-           component))
+        (normalize-sm
+         (merge
+          context
+          {:signals (-> (:signals context)
+                        (set/rename-keys (:gx/signal-mapping component)))
+           :signal-mapping signal-mapping})
+         component)
 
         ;; dissoc the empty node keys so that coming
         ;; back on the normalise step doesnt include them
@@ -357,8 +365,13 @@
              {:gx/component comp-comp})
            (set/rename-keys comp-signals (set/map-invert signal-mapping))))]
 
-    (tap> {:node (:node component)
-           :sm (:signal-mapping context)
+    (tap> {:direction :up
+           :node (:node normal-sm-def)
+           :def normal-sm-def
+           :context context
+           :c-signals (:signals context)
+           :c-signal-mapping (:signal-mapping context)
+
            :inner {:context (merge context
                                    {:signals (-> (:signals context)
                                                (set/rename-keys (:gx/signal-mapping component)))
@@ -369,6 +382,11 @@
     {:component component
      :mergable-component mergeable-component}))
 
+(defn ensure-resolved [ref]
+  (cond
+    (symbol? ref) (resolve-symbol ref)
+    :else ref))
+
 (defn normalize-sm [context sm-def]
   (let [;; is this sm-def in normal form
         normal? (normal-sm-def? context sm-def)
@@ -378,9 +396,10 @@
                     (normalize-sm-auto context sm-def))
 
         {:keys [component mergeable-component]}
-        (let [{:gx/keys [component signal-mapping]} normal-sm]
-          (when component
-            (normalize-component-in-context context component signal-mapping)))
+        (when (:gx/component normal-sm)
+          (normalize-component-in-context
+           context
+           (update normal-sm :gx/component ensure-resolved)))
 
         ;; merge component
         sm-with-component (impl/deep-merge
