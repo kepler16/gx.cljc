@@ -5,7 +5,8 @@
             [k16.gx.beta.errors :as gx.err]
             [k16.gx.beta.impl :as impl]
             [k16.gx.beta.schema :as gx.schema]
-            #?(:clj [k16.gx.beta.context :refer [merge-err-ctx]])))
+            #?(:clj [k16.gx.beta.context :refer [merge-err-ctx]])
+            [clojure.set :as set]))
 
 (def locals #{'gx/ref 'gx/ref-keys})
 
@@ -63,7 +64,7 @@
 (def default-context
   {:initial-state :uninitialised
    :normalize {:form-evaluator postwalk-evaluate
-               ;; signal, whish is default for static component nodes
+               ;; signal, whish is default for auto component nodes
                :auto-signal :gx/start
                :props-signals #{:gx/start}}
    :signal-mapping {}
@@ -153,7 +154,6 @@
         partial-signal
 
         resolved-props (or resolved-props (deps->resolved-props deps))]
-
     (merge
      (when processor-defined?
        signal-def)
@@ -315,7 +315,10 @@
            (update-vals signals-only (partial normalize-signal context)))))
 
 (defn context->defined-signals [context]
-  (set (keys (:signals context))))
+  (into #{}
+        (concat
+         (keys (:signals context))
+         (vals (:signal-mapping context)))))
 
 (defn normal-sm-def? [context sm-def]
   (and (map? sm-def)
@@ -324,57 +327,90 @@
              sm-def-keys (keys sm-def)]
          (some sm-valid-keys sm-def-keys))))
 
+(declare normalize-sm)
+
+(defn normalize-component-in-context [context component signal-mapping]
+  (let [signal-mapping (set/rename-keys
+                        (:signal-mapping context)
+                        signal-mapping)
+
+          ;; collect and normalise component if once exists
+          ;; recursively calls normalize-sm
+        component
+        (when component
+          (normalize-sm
+           (merge
+            context
+            {:signals (-> (:signals context)
+                          (set/rename-keys (:gx/signal-mapping component)))
+             :signal-mapping signal-mapping})
+           component))
+
+        ;; dissoc the empty node keys so that coming
+        ;; back on the normalise step doesnt include them
+        mergeable-component
+        (let [comp-min (apply dissoc component (keys (empty-node-instance  context)))
+              comp-comp (:gx/component comp-min)
+              comp-signals (dissoc comp-min :gx/component)]
+          (merge
+           (when comp-comp
+             {:gx/component comp-comp})
+           (set/rename-keys comp-signals (set/map-invert signal-mapping))))]
+
+    (tap> {:node (:node component)
+           :sm (:signal-mapping context)
+           :inner {:context (merge context
+                                   {:signals (-> (:signals context)
+                                               (set/rename-keys (:gx/signal-mapping component)))
+                                    :signal-mapping signal-mapping})
+                   :component component}
+           :to-merge mergeable-component})
+
+    {:component component
+     :mergable-component mergeable-component}))
+
 (defn normalize-sm [context sm-def]
   (let [;; is this sm-def in normal form
         normal? (normal-sm-def? context sm-def)
 
-        partial-sm (if normal?
-                     sm-def
-                     (normalize-sm-auto context sm-def))
+        normal-sm (if normal?
+                    sm-def
+                    (normalize-sm-auto context sm-def))
 
-        ;; collect and normalise component if once exists
-        ;; recursively calls normalize-sm
-        component (let [component (:gx/component partial-sm)
-                        component (if (symbol? component)
-                                    (resolve-symbol component)
-                                    component)]
-                    (when component
-                      (let [signal-mapping (or (:gx/signal-mapping partial-sm)
-                                               (:signal-mapping context))]
-                        (normalize-sm (merge context {:signal-mapping signal-mapping})
-                                      component))))
+        {:keys [component mergeable-component]}
+        (let [{:gx/keys [component signal-mapping]} normal-sm]
+          (when component
+            (normalize-component-in-context context component signal-mapping)))
 
         ;; merge component
         sm-with-component (impl/deep-merge
-                           component
-                           partial-sm)
+                           mergeable-component
+                           normal-sm)
 
-        top-level-props (:gx/props sm-with-component)
+        ;; top-level-props (:gx/props sm-with-component)
 
         ;; select signal definitions
         signal-defs (select-keys sm-with-component (context->defined-signals context))
         ;; normalise signal definitions
         normalized-signals (update-vals signal-defs #(normalize-signal context %))
 
-        sm (merge
-            (empty-node-instance context)
-            ;; include the component heritage
-            (when component
-              {:gx/component
-               ;; dissoc the empty node keys so that coming
-               ;; back on the normalise step doesnt include them
-               (apply dissoc component (-> context
-                                           empty-node-instance
-                                           keys))})
-            sm-with-component
+        sm (impl/deep-merge
+            mergeable-component
             normalized-signals)]
-     (impl/deep-merge
-      component
-      sm)))
+
+    (merge
+     (empty-node-instance context)
+     ;; include the component heritage
+     (when component
+       {:gx/component component})
+     ;; sm-with-component
+     sm)))
 
 (comment
-  (context->defined-signals default-context)
-  (normalize-sm default-context {}))
+  (normalize-sm default-context 3)
+  (-> (normalize-sm default-context {:gx/component {:gx/start {:gx/processor (fn [{:keys [props]}] props)}}})
+      :gx/start :gx/processor
+      (apply [{:props 5}])))
 
 (defn- sm-def-type
   [context sm-def]
