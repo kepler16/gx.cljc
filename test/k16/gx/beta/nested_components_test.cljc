@@ -5,11 +5,8 @@
             #?@(:cljs [[cljs.test :as t :refer-macros [deftest is]]])))
 
 (def ^:export nested-level-2
-  {:l2/start {:gx/processor identity}
+  {:l2/start {:gx/processor (fn [_] :hello-from-nested-level-2)}
    :l2/stop {:gx/processor identity}})
-
-(def nested-level-1
-  '(println "sdf"))
 
 (def ^:export nested-level-1
   {:gx/component nested-level-2
@@ -19,32 +16,12 @@
 (def ^:export root
   {:gx/component nested-level-1})
 
-(comment
-  (let [context (assoc gx/default-context
-                       :signal-mapping
-                       {:gx/start :l1/start
-                        :gx/stop :l1/stop})]
-    (gx/flatten-component context root)))
-  ;; => #:gx{:start #:gx{:processor #function[clojure.core/identity]},
-  ;;         :stop #:gx{:processor #function[clojure.core/identity]}}
-
-
 (deftest nested-component-resolve-test
-  (let [resolved (gx.norm/normalize-node (gx.norm/->Component
-                                          (assoc gx.norm/default-context
-                                                 :signal-mapping
-                                                 {:gx/start :l1/start
-                                                  :gx/stop :l1/stop})
-                                          {:gx/component
-                                           'k16.gx.beta.nested-components-test/root}))]
-    (is (= #:gx{:value nil,
-                :state :uninitialised,
-                :component
-                #:gx{:component
-                     #:l2{:start #:gx{:processor identity},
-                          :stop #:gx{:processor identity}},
-                     :signal-mapping #:l1{:start :l2/start, :stop :l2/stop}},
-                :signal-mapping #:gx{:start :l1/start, :stop :l1/stop},
-                :start #:gx{:processor identity},
-                :stop #:gx{:processor identity}}
-           resolved))))
+  (let [resolved (gx.norm/normalize-sm'
+                  (assoc gx/default-context
+                         :signal-mapping
+                         {:gx/start :l1/start
+                          :gx/stop :l1/stop})
+                  {:gx/component 'k16.gx.beta.nested-components-test/root})]
+    (is (= :hello-from-nested-level-2
+           (-> resolved :gx/start :gx/processor (apply [nil]))))))
