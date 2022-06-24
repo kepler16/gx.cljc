@@ -1,4 +1,44 @@
-# [](https://github.com/kepler16/gx.cljc/compare/v2.3.1...v) (2022-06-18)
+# [](https://github.com/kepler16/gx.cljc/compare/v2.5.0...v) (2022-06-24)
+
+
+
+# [2.5.0](https://github.com/kepler16/gx.cljc/compare/v2.4.3...v2.5.0) (2022-06-24)
+
+
+### Features
+
+* async processor support ([76c8346](https://github.com/kepler16/gx.cljc/commit/76c83467fb1d44b2f7e1ec003e4187bdc3cde955))
+
+
+
+## [2.4.3](https://github.com/kepler16/gx.cljc/compare/v2.4.2...v2.4.3) (2022-06-22)
+
+
+### Bug Fixes
+
+* not all errors are cached in js runtime ([ba5860f](https://github.com/kepler16/gx.cljc/commit/ba5860ff24d9c4eb82d67a085bfd863596539d8d))
+
+
+
+## [2.4.2](https://github.com/kepler16/gx.cljc/compare/v2.4.1...v2.4.2) (2022-06-21)
+
+
+### Bug Fixes
+
+* human-readable error message formatter ([0c60e6f](https://github.com/kepler16/gx.cljc/commit/0c60e6ff7573091ee9f15403d271ce187d576413))
+
+
+
+## [2.4.1](https://github.com/kepler16/gx.cljc/compare/v2.4.0...v2.4.1) (2022-06-20)
+
+
+### Bug Fixes
+
+* components w/o specific signal should not change its status ([5dffed3](https://github.com/kepler16/gx.cljc/commit/5dffed311e9b314dd94ab231879707f1b773070e))
+
+
+
+# [2.4.0](https://github.com/kepler16/gx.cljc/compare/v2.3.1...v2.4.0) (2022-06-18)
 
 
 ### Features
