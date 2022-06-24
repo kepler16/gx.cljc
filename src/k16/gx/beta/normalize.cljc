@@ -81,10 +81,10 @@
 
 (defrecord RunnableForm [context env form]
   IRunnableForm
-  (parse [this]
-    ((-> this :context :normalize :form-evaluator) nil (:form this) false))
-  (run [this props]
-    ((-> this :context :normalize :form-evaluator) props (:form this))))
+  (parse [_this]
+    ((-> context :normalize :form-evaluator) nil form false))
+  (run [_this props]
+    ((-> context :normalize :form-evaluator) props form)))
 
 (defn form->runnable
   ([context form-def]
