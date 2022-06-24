@@ -406,7 +406,7 @@
   (normalize-sm-auto context sm-def))
 
 (defmethod normalize-sm' ::normalized-sm
-  [context node-def]
+  [_context node-def]
   node-def)
 
 (defn normalize-node
