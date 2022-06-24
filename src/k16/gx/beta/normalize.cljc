@@ -385,7 +385,7 @@
         ;; (function-call? component) ::component-constructor
         :else ::unsupported-component))
 
-    :else ::auto-node))
+    :else ::auto-sm))
 
 (defmulti normalize-sm' sm-def-type)
 
