@@ -309,8 +309,10 @@
    {:gx/component 'k16.gx.beta.normalize/my-new-component}))
 
 (defn normalize-sm-inline [context sm-def]
-  (merge (empty-node-instance context)
-         (update-vals sm-def #(normalize-signal context %))))
+  (let [signals-only (select-keys sm-def (-> context :signals keys))]
+    (merge (empty-node-instance context)
+           sm-def
+           (update-vals signals-only (partial normalize-signal context)))))
 
 (defn context->defined-signals [context]
   (set (keys (:signals context))))
