@@ -1,4 +1,8 @@
-# [](https://github.com/kepler16/gx.cljc/compare/v2.4.3...v) (2022-06-24)
+# [](https://github.com/kepler16/gx.cljc/compare/v2.5.0...v) (2022-06-24)
+
+
+
+# [2.5.0](https://github.com/kepler16/gx.cljc/compare/v2.4.3...v2.5.0) (2022-06-24)
 
 
 ### Features
