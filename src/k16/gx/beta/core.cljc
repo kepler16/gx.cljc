@@ -13,19 +13,7 @@
                      :refer [merge-err-ctx with-ctx]]))
   (:import #?(:clj [clojure.lang ExceptionInfo])))
 
-(def default-context
-  {:initial-state :uninitialised
-   :normalize {;; signal, whish is default for static component nodes
-               :auto-signal :gx/start
-               :props-signals #{:gx/start}}
-   :signal-mapping {}
-   :signals {:gx/start {:from-states #{:stopped :uninitialised}
-                        :to-state :started}
-             :gx/stop {:from-states #{:started}
-                       :to-state :stopped
-                       ;; this is used as a sign of anti-signal and aplies
-                       ;; it in reversed order
-                       :deps-from :gx/start}}})
+(def default-context gx.norm/default-context)
 
 #?(:clj
    (defn quiet-requiring-resolve
@@ -76,7 +64,7 @@
    This acts as the static analysis step of the graph.
    Returns tuple of error explanation (if any) and normamized graph."
   [{:keys [context graph]
-    :or {context gx.normalzie/default-context}
+    :or {context default-context}
     :as gx-map}]
   (let [config-issues (validate-context context)
         gx-map (assoc gx-map :context context)
