@@ -406,16 +406,17 @@
   node-def)
 
 (defn normalize-node
-  [context [node-key sm-def]]
+  [context sm-def]
   (merge-err-ctx {:error-type :normalize-node
-                  :node-key node-key
                   :node-contents sm-def}
-    [node-key (normalize-sm' context sm-def)]))
+    (normalize-sm' context sm-def)))
 
 (defn normalize-graph
   [{:keys [context graph] :as gx-map}]
   (merge-err-ctx {:error-type :normalize-node}
     (let [normalized (->> graph
-                          (map (partial normalize-node context))
+                          (map (fn [[k sm-def]]
+                                 (merge-err-ctx {:node-key k}
+                                   [k (normalize-node context sm-def)])))
                           (into {}))]
       (assoc gx-map :graph normalized))))
