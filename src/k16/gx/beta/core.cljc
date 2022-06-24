@@ -5,7 +5,7 @@
   (:require [malli.core :as m]
             [malli.error :as me]
             [promesa.core :as p]
-            [k16.gx.beta.normalize :as gx.normalzie]
+            [k16.gx.beta.normalize :as gx.norm]
             [k16.gx.beta.impl :as impl]
             [k16.gx.beta.schema :as gx.schema]
             [k16.gx.beta.errors :as gx.err]
@@ -75,7 +75,7 @@
     (try
       (if config-issues
         (throw (ex-info "GX Context error" config-issues))
-        (gx.normalzie/normalize-graph gx-map'))
+        (gx.norm/normalize-graph gx-map'))
       (catch ExceptionInfo e
         (update gx-map' :failures conj (gx.err/ex->gx-err-data e))))))
 
@@ -190,8 +190,8 @@
   (let [evaluate-fn (-> context :normalize :form-evaluator)
         signal-config (-> context :signals signal-key)
         {:keys [deps-from from-states to-state]} signal-config
-        node (get graph node-key)
-        node (gx.normalzie/normalize-node context node)
+        node-def (get graph node-key)
+        node (gx.norm/normalize-node context node-def)
         node-state (:gx/state node)
         signal-def (get node signal-key)
         {:gx/keys [processor props-schema resolved-props]} signal-def
