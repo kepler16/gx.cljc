@@ -173,7 +173,9 @@
         auto-signal (-> context :normalize :auto-signal)
         other-signals (-> context :signals keys set (disj auto-signal))]
     (->> other-signals
-         (map (fn [other-signal] [other-signal {:gx/processor :value}]))
+         (map (fn [other-signal] [other-signal {:gx/processor :value
+                                                :gx/deps #{}
+                                                :gx/resolved-props {}}]))
          (into {auto-signal normalized-signal})
          (merge (empty-node-instance context)))))
 

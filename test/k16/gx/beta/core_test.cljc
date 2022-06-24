@@ -2,6 +2,7 @@
   (:require [k16.gx.beta.core :as gx]
             [k16.gx.beta.registry :as gx.reg :include-macros true]
             [k16.gx.beta.schema :as gx.schema]
+            [clojure.data :refer [diff]]
             [k16.gx.beta.normalize :as gx.norm]
             #?(:clj [clojure.test :as t :refer [deftest is testing]])
             #?@(:cljs [[cljs.test :as t :refer-macros [deftest is testing]]
@@ -170,14 +171,9 @@
                                  :graph (load-config)})
         gx-norm-2 (gx/normalize gx-norm-1)
         gx-norm-3 (gx/normalize gx-norm-2)]
-    (testing "normalization should add :gx/normalized? flag"
-      (is (= #{true} (set (map :gx/normalized? (vals (:graph gx-norm-1)))))))
     (testing "all graphs should be equal"
-      (is (= gx-norm-1 gx-norm-2 gx-norm-3)))
-    (testing "should normalize and flag new node in graph "
-      (let [new-gx (assoc-in gx-norm-3 [:graph :new-node] '(* 4 (gx/ref :z)))
-            new-gx-norm (gx/normalize new-gx)]
-        (is (:gx/normalized? (:new-node (:graph new-gx-norm))))))))
+      (is (= [nil nil] (take 2 (diff gx-norm-1 gx-norm-2))))
+      (is (= [nil nil] (take 2 (diff gx-norm-1 gx-norm-3)))))))
 
 (deftest dependency-error-test
   (let [graph {:a (gx/ref :b)
