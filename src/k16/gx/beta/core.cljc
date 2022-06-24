@@ -395,16 +395,37 @@
                            {:ex-message (impl/error-message e)
                             :args arg-map}))))
 
-(defn- run-processor
-  [processor arg-map]
-  (try
-    [nil (processor arg-map)]
-    (catch #?(:clj Throwable :cljs :default) e
-      [(gx.err/gx-err-data "Signal processor error"
-                           {:ex-message (impl/error-message e)
-                            :ex (or (ex-data e) e)
-                            :args arg-map})
-       nil])))
+(defn- wrap-error
+  [e arg-map]
+  (gx.err/gx-err-data "Signal processor error"
+                      {:ex-message (impl/error-message e)
+                       :ex (or (ex-data e) e)
+                       :args arg-map}))
+
+#?(:cljs
+   (defn- wrap-error-cljs
+     [e arg-map err-ctx]
+     (with-err-ctx err-ctx
+       (wrap-error e arg-map))))
+
+#?(:clj
+   (defn- run-processor
+     [processor arg-map]
+     (try
+       [nil @(p/do (processor arg-map))]
+       (catch Throwable e
+         [(wrap-error e arg-map) nil])))
+
+   :cljs
+   (defn- run-processor
+     "CLJS version with error context propagation"
+     [processor arg-map err-ctx]
+     (try
+       (-> (processor arg-map)
+           (p/then (fn [v] [nil v]))
+           (p/catch (fn [e] [(wrap-error-cljs e arg-map err-ctx) nil])))
+       (catch :default e
+         [(wrap-error-cljs e arg-map err-ctx) nil]))))
 
 (defn node-signal
   "Trigger a signal through a node, assumes dependencies have been run.
@@ -452,20 +473,25 @@
                                  "Failure in dependencies"
                                  {:dep-node-keys failed-dep-node-keys}))
         (ifn? processor)
-        (let [props-result (if (fn? resolved-props-fn)
-                             (run-props-fn resolved-props-fn dep-nodes-vals)
-                             (postwalk-evaluate dep-nodes-vals resolved-props))
-              [error data] (if-let [validate-error (props-validate-error
-                                                    props-schema props-result)]
-                             [validate-error]
-                             (run-processor
-                              processor {:props props-result
-                                         :value (:gx/value node)}))]
-          (if error
-            (assoc node :gx/failure error)
-            (-> node
-                (assoc :gx/value data)
-                (assoc :gx/state to-state))))
+        ;; Binding vars is not passed to nested async code
+        ;; Workaround for CLJS: propagating error context manually
+        (let [err-ctx gx.err/*err-ctx*]
+          (p/let [props-result (if (fn? resolved-props-fn)
+                                 (run-props-fn resolved-props-fn dep-nodes-vals)
+                                 (postwalk-evaluate dep-nodes-vals resolved-props))
+                  validate-error (with-err-ctx err-ctx
+                                   (props-validate-error props-schema props-result))
+                  [error result] (when-not validate-error
+                                   (run-processor
+                                    processor
+                                    {:props props-result
+                                     :value (:gx/value node)}
+                                    #?(:cljs err-ctx)))]
+            (if-let [e (or validate-error error)]
+              (assoc node :gx/failure e)
+              (-> node
+                  (assoc :gx/value result)
+                  (assoc :gx/state to-state)))))
 
         :else (assoc node :gx/state to-state)))))
 
