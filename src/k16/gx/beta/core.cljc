@@ -271,10 +271,9 @@
          (cond
            (seq sorted)
            (p/let [node-key (first sorted)
-                   node (with-ctx {:ctx (system-value gxm)
-                                   :err {:error-type :node-signal
-                                         :signal-key signal-key
-                                         :node-key node-key}}
+                   node (merge-err-ctx {:error-type :node-signal
+                                        :signal-key signal-key
+                                        :node-key node-key}
                           (node-signal gxm node-key signal-key))
                    next-gxm (assoc-in gxm [:graph node-key] node)]
              (p/recur (merge-node-failure next-gxm node) (rest sorted)))

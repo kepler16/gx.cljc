@@ -1,26 +1,35 @@
 (ns k16.gx.beta.context)
 
-(defrecord ErrorContext [error-type node-key node-contents signal-key])
-
-(def ^:dynamic *err-ctx*
-  "Error context is used for creating/throwing exceptions with contextual data"
-  (map->ErrorContext {:error-type :general}))
-
-(def ^:dynamic *ctx* {})
+(def ^:dynamic *runtime*
+  "GX's execution runtime, contains:
+   - :err is used for creating/throwing exceptions with contextual data
+   - :context contains gx context with configurations"
+  {:err {:error-type :general}
+   :context {}})
 
 (defmacro merge-err-ctx
-  "Creates error context by merging value to `k16.gx.beta.error/*err-ctx*`"
-  [ctx & body]
-  `(binding [~'k16.gx.beta.context/*err-ctx*
-             (merge ~'k16.gx.beta.context/*err-ctx* ~ctx)]
+  "Creates error context by merging value to :err in `k16.gx.beta.error/*runtime*`"
+  [err & body]
+  `(binding [~'k16.gx.beta.context/*runtime*
+             (update ~'k16.gx.beta.context/*runtime* :err merge ~err)]
      ~@body))
 
 (defmacro with-ctx
-  "Takes map with two keys :ctx, :err. Creates general context from :ctx,
-   merger :err to error context"
+  "Takes map with two keys :context and :err. Creates execution context"
   [ctx & body]
-  `(binding [~'k16.gx.beta.context/*ctx* (:ctx ~ctx)]
-     (if-let [err# (:err ~ctx)]
-       (merge-err-ctx err#
-         ~@body)
-       ~@body)))
+  `(binding [~'k16.gx.beta.context/*runtime*
+             (merge ~'k16.gx.beta.context/*runtime* ~ctx)]
+     ~@body))
+
+(defn err []
+  (get *runtime* :err))
+
+(defn context []
+  (get *runtime* :context))
+
+(comment
+  (with-ctx {:context {:foo 1}}
+    *runtime*)
+  (merge-err-ctx {:node-key :foo}
+    (err))
+  )
