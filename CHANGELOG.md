@@ -1,4 +1,13 @@
-# [](https://github.com/kepler16/gx.cljc/compare/v2.5.0...v) (2022-06-24)
+# [](https://github.com/kepler16/gx.cljc/compare/v2.5.1...v) (2022-06-25)
+
+
+
+## [2.5.1](https://github.com/kepler16/gx.cljc/compare/v2.5.0...v2.5.1) (2022-06-25)
+
+
+### Bug Fixes
+
+* cljs error message impl ([7d6180e](https://github.com/kepler16/gx.cljc/commit/7d6180e9848f8d3cbd93b8e0d2174630c89e4722))
 
 
 
