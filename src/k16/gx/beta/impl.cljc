@@ -138,11 +138,17 @@
 
 (defn error-message
   [ex]
-  (if (string? ex)
-    ex
-    (->> ex
-         (iterate ex-cause)
-         (take-while some?)
-         (mapv ex-message)
-         (interpose "; ")
-         (apply str))))
+  #?(:clj (->> ex
+               (iterate ex-cause)
+               (take-while some?)
+               (mapv ex-message)
+               (interpose "; ")
+               (apply str))
+     :cljs (cond
+             (instance? cljs.core/ExceptionInfo ex)
+             (ex-message ex)
+
+             (instance? js/Error ex)
+             (ex-message ex)
+
+             :else ex)))
