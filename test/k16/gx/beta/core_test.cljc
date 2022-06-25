@@ -2,6 +2,8 @@
   (:require [k16.gx.beta.core :as gx]
             [k16.gx.beta.registry :as gx.reg :include-macros true]
             [k16.gx.beta.schema :as gx.schema]
+            [clojure.data :refer [diff]]
+            [k16.gx.beta.normalize :as gx.norm]
             #?(:clj [clojure.test :as t :refer [deftest is testing]])
             #?@(:cljs [[cljs.test :as t :refer-macros [deftest is testing]]
                        [promesa.core :as p]
@@ -13,7 +15,7 @@
 ;; this component is linked in fixtures/graphs.edn
 (def test-component
   {:gx/start {:gx/props-schema TestCoponentProps
-              :gx/props {:a (gx/ref :a)}
+              :gx/props {:a '(gx/ref :a)}
               :gx/processor
               (fn [{:keys [props _value]}]
                 (let [a (:a props)]
@@ -22,7 +24,7 @@
 
 (def test-component-2
   {:gx/start {:gx/props-schema TestCoponentProps
-              :gx/props {:a (gx/ref :a)}
+              :gx/props {:a '(gx/ref :a)}
               :gx/processor
               (fn [{:keys [props _value]}]
                 (let [a (:a props)]
@@ -32,13 +34,14 @@
 (defn load-config []
   (gx.reg/load-graph! "test/fixtures/graph.edn"))
 
-(def context gx/default-context)
+(def context gx.norm/default-context)
 
 (comment
   (let [graph (load-config)
         gx-map (gx/normalize {:context context
                               :graph graph})]
-    (gx.schema/validate-graph gx-map))
+    gx-map
+    #_(gx/signal-sync gx-map :gx/start))
   )
 
 (deftest graph-tests
@@ -104,7 +107,8 @@
 (deftest failed-normalization-test
   (let [custom-context {:initial-state :uninitialised
                         :normalize {:auto-signal :custom/start
-                                    :props-signals #{:custom/start}}
+                                    :props-signals #{:custom/start}
+                                    :form-evaluator gx.norm/postwalk-evaluate}
                         :signals
                         {:custom/start {:from-states #{:stopped :uninitialized}
                                         :to-state :started}
@@ -156,19 +160,20 @@
                 (run-checks gx-started gx-stopped)
                 (done))))))
 
+(comment
+  (let [graph {:a {:nested-a 1}
+               :c {:gx/component 'k16.gx.beta.core-test/test-component}}]
+    (gx/normalize {:context context
+                   :graph graph})))
+
 (deftest subsequent-normalizations-test
   (let [gx-norm-1 (gx/normalize {:context context
                                  :graph (load-config)})
         gx-norm-2 (gx/normalize gx-norm-1)
         gx-norm-3 (gx/normalize gx-norm-2)]
-    (testing "normalization should add :gx/normalized? flag"
-      (is (= #{true} (set (map :gx/normalized? (vals (:graph gx-norm-1)))))))
     (testing "all graphs should be equal"
-      (is (= gx-norm-1 gx-norm-2 gx-norm-3)))
-    (testing "should normalize and flag new node in graph "
-      (let [new-gx (assoc-in gx-norm-3 [:graph :new-node] '(* 4 (gx/ref :z)))
-            new-gx-norm (gx/normalize new-gx)]
-        (is (:gx/normalized? (:new-node (:graph new-gx-norm))))))))
+      (is (= [nil nil] (take 2 (diff gx-norm-1 gx-norm-2))))
+      (is (= [nil nil] (take 2 (diff gx-norm-1 gx-norm-3)))))))
 
 (deftest dependency-error-test
   (let [graph {:a (gx/ref :b)
@@ -185,12 +190,12 @@
             :signal-key :gx/start}
            failure))))
 
-(defn my-props-fn
+(defn ^:export my-props-fn
   [{:keys [a]}]
   (assoc a :full-name
          (str (:name a) " " (:last-name a))))
 
-(def my-new-component
+(def ^:export my-new-component
   {:gx/start {:gx/props (gx/ref :a)
               :gx/processor
               (fn my-new-component-handler
@@ -200,21 +205,25 @@
 (deftest props-fn-test
   (let [run-checks
         (fn [gx-started]
-          (is (= @(:comp (gx/system-value gx-started))
-                 {:name "John" :last-name "Doe" :full-name "John Doe"})))
-        graph (gx.reg/load-graph! "test/fixtures/props_fn.edn")
-        gx-map {:context context :graph graph}
+          (is (= {:name "John" :last-name "Doe" :full-name "John Doe"}
+                 @(:comp (gx/system-value gx-started)))))
+        graph {:a {:name "John"
+                   :last-name "Doe"}
+               :comp
+               {:gx/component 'k16.gx.beta.core-test/my-new-component
+                :gx/start {:gx/props-fn 'k16.gx.beta.core-test/my-props-fn}}}
+        gx-map {:graph graph}
         started (gx/signal gx-map :gx/start)]
     #?(:clj (run-checks @started)
        :cljs (t/async done (p/then started (fn [s]
                                              (run-checks s)
                                              (done)))))))
 
-(deftest postwalk-evaluate-test
+#_(deftest postwalk-evaluate-test
   (let [env {:http/server {:port 8080}
              :db/url "jdbc://foo/bar/baz"}]
 
-    (t/are [arg result] (= result (gx/postwalk-evaluate env arg))
+    (t/are [arg result] (= result (gx/-postwalk-evaluate env arg))
       (gx/ref :http/server) {:port 8080}
 
       (gx/ref-keys [:http/server :db/url]) {:http/server {:port 8080}
@@ -244,8 +253,7 @@
                  :d '(throw "starting")
                  :b {:gx/start '(+ (gx/ref :z) 2)
                      :gx/stop '(println "stopping")}}
-          gx-norm (gx/normalize {:graph graph
-                                 :context gx/default-context})]
+          gx-norm (gx/normalize {:graph graph})]
       (is (= {:error-type :normalize-node,
               :node-key :d,
               :node-contents '(throw "starting"),
@@ -259,8 +267,7 @@
                  :d '(println "starting")
                  :b {:gx/start '(+ (gx/ref :z) 2)
                      :gx/stop '(some-not-found-symbol "stopping")}}
-          gx-norm (gx/normalize {:graph graph
-                                 :context gx/default-context})
+          gx-norm (gx/normalize {:graph graph})
           failure (-> gx-norm :failures first)]
       (is (= {:error-type :normalize-node,
               :node-key :b,
@@ -280,8 +287,7 @@
                     :c '(inc :bar)
                     :b {:gx/start '(/ (gx/ref :z) 0)
                         :gx/stop '(println "stopping")}}
-             gx-norm (gx/normalize {:graph graph
-                                    :context gx/default-context})
+             gx-norm (gx/normalize {:graph graph})
              expect (list {:internal-data
                            {:ex-message "java.lang.ArithmeticException: Divide by zero; Divide by zero",
                             :args {:props {:z 1}, :value nil}},
@@ -354,7 +360,7 @@
                   :c '(gx/ref :b)
                   :d '(gx/ref :c)}
            gx-map {:graph graph
-                   :context gx/default-context}
+                   :context gx.norm/default-context}
            expect (list {:internal-data {:dep-node-keys '(:c)},
                          :message "Failure in dependencies",
                          :error-type :node-signal,
@@ -433,8 +439,7 @@
 (deftest component-processor-unresolved-test
   (testing "should resolve all components during normalization stage"
     (let [graph {:c {:gx/component 'k16.gx.beta.core-test/non-existent}}
-          gx-map (gx/normalize {:graph graph
-                                :context context})]
+          gx-map (gx/normalize {:graph graph})]
       (is (= {:message "Component could not be resolved",
               :error-type :normalize-node-component,
               :node-key :c,
@@ -445,8 +450,7 @@
              (first (:failures gx-map)))))
 
     (let [graph {:c {:gx/component 'k16.gx.beta.core-test/invalid-component}}
-          gx-map (gx/normalize {:graph graph
-                                :context context})]
+          gx-map (gx/normalize {:graph graph})]
       (is (= {:message "Component schema error",
               :error-type :normalize-node-component,
               :node-key :c,
@@ -461,8 +465,7 @@
                  (update :internal-data dissoc :component-schema)))))
 
     (let [graph {:c {:gx/component 'k16.gx.beta.core-test/invalid-component-2}}
-          gx-map (gx/normalize {:graph graph
-                                :context context})]
+          gx-map (gx/normalize {:graph graph})]
       (is (= {:message "Component schema error",
               :error-type :normalize-node-component,
               :node-key :c,
@@ -537,7 +540,8 @@
 (deftest validate-context-test
   (let [context {:initial-state :uninitialised
                  :normalize {:auto-signal :gx/start
-                             :props-signals #{:gx/start}}
+                             :props-signals #{:gx/start}
+                             :form-evaluator gx.norm/postwalk-evaluate}
                  :signal-mapping {}
                  :signals {:gx/start {:from-states #{:stopped :uninitialised}
                                       :to-state :started

@@ -1,16 +1,11 @@
-(ns k16.gx.beta.errors)
-
-(defrecord ErrorContext [error-type node-key node-contents signal-key])
-
-(def ^:dynamic *err-ctx*
-  "Error context is used for creating/throwing exceptions with contextual data"
-  (map->ErrorContext {:error-type :general}))
+(ns k16.gx.beta.errors
+  (:require [k16.gx.beta.context :as gx.context]))
 
 (defn gx-err-data
   ([internal-data]
    (gx-err-data nil internal-data))
   ([message internal-data]
-   (->> *err-ctx*
+   (->> (gx.context/err)
         (filter (fn [[_ v]] v))
         (into (if message {:message message} {}))
         (merge {:internal-data internal-data}))))
@@ -24,7 +19,7 @@
 (defn ex->gx-err-data
   [ex]
   (->> (ex-data ex)
-       (merge *err-ctx*)
+       (merge (gx.context/err))
        (filter (fn [[_ v]] v))
        (into {:message (ex-message ex)})))
 
