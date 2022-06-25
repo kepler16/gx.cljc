@@ -1,15 +1,8 @@
 {:source-paths ["src" "dev" "test"]
  :dependencies [[funcool/promesa "6.0.2"]
-                [metosin/malli "0.8.4"]
-                [juxt/clip "0.27.0"]]
+                [metosin/malli "0.8.4"]]
  :builds
- {:gx
-  {:target    :npm-module
-   :output-to "out/gx.js"
-   :output-dir "out"}
-
-  :test
-  {:target    :node-test
-   :output-to "out/gx-test.js"
-   :ns-regexp "-test$"
-   :autorun   true}}}
+ {:test {:target    :node-test
+         :output-to "out/gx-test.js"
+         :ns-regexp "-test$"
+         :autorun   true}}}
