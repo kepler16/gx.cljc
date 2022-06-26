@@ -2,9 +2,8 @@
   (:require [k16.gx.beta.core :as gx]
             [k16.gx.beta.registry :as gx.reg :include-macros true]
             [k16.gx.beta.schema :as gx.schema]
-            #?(:clj [clojure.test :as t :refer [deftest is testing]])
-            #?@(:cljs [[cljs.test :as t :refer-macros [deftest is testing]]
-                       [promesa.core :as p]
+            [clojure.test :as t :refer [deftest is testing]]
+            #?@(:cljs [[promesa.core :as p]
                        [k16.gx.beta.impl :as impl]])))
 
 (def TestCoponentProps
