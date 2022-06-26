@@ -51,4 +51,4 @@ jobs:
         run: clojure -X:test
 
       - name: Test cljs
-        run: npx shadow-cljs release test
+        run: clojure -M:dev:shadow-cljs release test

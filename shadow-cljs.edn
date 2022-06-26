@@ -1,6 +1,4 @@
-{:source-paths ["src" "dev" "test"]
- :dependencies [[funcool/promesa "6.0.2"]
-                [metosin/malli "0.8.4"]]
+{:deps true
  :builds
  {:test {:target    :node-test
          :output-to "out/gx-test.js"

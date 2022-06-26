@@ -81,9 +81,9 @@ clj -X:test
 
 ```bash
 # install deps
-pnpm i
+npm i
 # run tests
-pnpm exec shadow-cljs compile test
+clojure -M:dev:shadow-cljs compile test
 # or with advanced compilation
-pnpm exec shadow-cljs release test
+clojure -M:dev:shadow-cljs release test
 ```
