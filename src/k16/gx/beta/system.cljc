@@ -74,3 +74,17 @@
         :cljs
         (.then (gx/signal gx-map signal-key priority-selector)
                (fn [v] (swap! registry* assoc system-name v)))))))
+
+(defn node-signal!
+  "Sends signal to a specific node of a system synchronously in clojure,
+   asynchronously in cljs"
+  ([system-name signal-key node-key]
+   (node-signal! system-name signal-key node-key {}))
+  ([system-name signal-key node-key options]
+   (when-let [gx-map (get @registry* system-name)]
+     #?(:clj
+        (swap! registry* assoc system-name
+               @(gx/node-signal gx-map signal-key node-key options))
+        :cljs
+        (.then (gx/node-signal gx-map signal-key node-key options)
+               (fn [v] (swap! registry* assoc system-name v)))))))
