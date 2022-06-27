@@ -1,13 +1,14 @@
 (ns k16.gx.beta.core
   (:refer-clojure :exclude [ref])
   #?(:cljs (:require-macros [k16.gx.beta.error-context :refer [with-err-ctx]]))
-  (:require [clojure.walk :as walk]
+  (:require [clojure.set :as set]
+            [clojure.walk :as walk]
+            [k16.gx.beta.errors :as gx.err]
+            [k16.gx.beta.impl :as impl]
+            [k16.gx.beta.schema :as gx.schema]
             [malli.core :as m]
             [malli.error :as me]
             [promesa.core :as p]
-            [k16.gx.beta.impl :as impl]
-            [k16.gx.beta.schema :as gx.schema]
-            [k16.gx.beta.errors :as gx.err]
             #?(:clj [k16.gx.beta.error-context :refer [with-err-ctx]]))
   (:import #?(:clj [clojure.lang ExceptionInfo])))
 
@@ -426,7 +427,7 @@
        (catch :default e
          [(wrap-error-cljs e arg-map err-ctx) nil]))))
 
-(defn node-signal
+(defn- -node-signal
   "Trigger a signal through a node, assumes dependencies have been run.
    Subsequent signal calls is supported, but it should be handled in it's
    implementation. For example, http server component checks that it
@@ -494,16 +495,16 @@
 
         :else (assoc node :gx/state to-state)))))
 
-(defn merge-node-failure
+(defn- merge-node-failure
   [gx-map node]
   (if-let [failure (:gx/failure node)]
     (update gx-map :failures conj failure)
     gx-map))
 
-(defn signal
+(defn -signal
   ([gx-map signal-key]
-   (signal gx-map signal-key #{}))
-  ([gx-map signal-key priority-selector]
+   (-signal gx-map signal-key {}))
+  ([gx-map signal-key {:keys [priority-selector exclusions]}]
    (let [gx-map (normalize (dissoc gx-map :failures))
          [error sorted] (topo-sort gx-map signal-key priority-selector)
          gx-map (if error
@@ -516,11 +517,103 @@
          (cond
            (seq sorted)
            (p/let [node-key (first sorted)
-                   node (with-err-ctx {:error-type :node-signal
-                                       :signal-key signal-key
-                                       :node-key node-key}
-                          (node-signal gxm node-key signal-key))
-                   next-gxm (assoc-in gxm [:graph node-key] node)]
+                   node (when-not (contains? exclusions node-key)
+                          (with-err-ctx {:error-type :node-signal
+                                         :signal-key signal-key
+                                         :node-key node-key}
+                            (-node-signal gxm node-key signal-key)))
+                   next-gxm (if node
+                              (assoc-in gxm [:graph node-key] node)
+                              gxm)]
              (p/recur (merge-node-failure next-gxm node) (rest sorted)))
 
            :else gxm))))))
+
+(defn signal
+  ([gx-map signal-key]
+   (-signal gx-map signal-key #{}))
+  ([gx-map signal-key priority-selector]
+   (-signal gx-map signal-key {:priority-selector priority-selector})))
+
+(defn signal-flow
+  "Calculates the flow of signal starting from a specific node"
+  [{:keys [graph context] :as gx-map} signal-key node-key]
+  (let [signal (signal-key (:signals context))
+        deps-from (:deps-from signal)
+        signal-key' (or deps-from signal-key)
+        signal-deps (-> graph node-key signal-key' :gx/deps set)
+        dep-nodes (->> graph
+                       (map (fn [[k n]] [k (signal-key' n)]))
+                       (filter (fn [[k {:gx/keys [deps]}]]
+                                 (if deps-from
+                                   (contains? (set deps) node-key)
+                                   (contains? signal-deps k))))
+                       (map first))]
+    (-> (map #(signal-flow gx-map signal-key %) dep-nodes)
+        (flatten)
+        (vec)
+        (conj node-key))))
+
+(defn node-signal
+  "Sends signal to a specific node and its dependencies"
+  ([gx-map signal-key node-key]
+   (node-signal gx-map signal-key node-key nil))
+  ([{:keys [graph] :as gx-map} signal-key node-key options]
+   (let [flow (signal-flow gx-map signal-key node-key)
+         exclusions (set/difference (set (keys graph)) (set flow))]
+     (if (seq flow)
+       (-signal gx-map signal-key (assoc options :exclusions exclusions))
+       (p/resolved gx-map)))))
+
+(comment
+  (def graph {:http/options {:port 8080}
+              :http/router {:some "router"}
+              :http/handler {:router '(gx/ref :http/router)}
+              :http/server {:opts '(gx/ref :http/options)
+                            :handler '(gx/ref :http/handler)}
+              :logger/config {:some "logger config"}
+              :logger/instance {:config '(gx/ref :logger/config)}})
+
+  (def started @(signal {:graph graph} :gx/start #{:logger/instance}))
+
+  (= (system-state started)
+     {:http/options :started,
+      :http/router :started,
+      :http/handler :started,
+      :http/server :started,
+      :logger/config :started,
+      :logger/instance :started})
+
+  (def partial-stop @(node-signal started :gx/stop :http/handler))
+  (= (system-state partial-stop)
+     {:http/options :started,
+      :http/router :started,
+      :http/handler :stopped,
+      :http/server :stopped,
+      :logger/config :started,
+      :logger/instance :started})
+
+  (def partial-start @(node-signal partial-stop :gx/start :http/handler))
+  (= (system-state partial-start)
+     {:http/options :started,
+      :http/router :started,
+      :http/handler :started,
+      :http/server :stopped,
+      :logger/config :started,
+      :logger/instance :started})
+
+  (def full-start @(node-signal partial-start :gx/start :http/server))
+  (= (system-state full-start)
+     {:http/options :started,
+      :http/router :started,
+      :http/handler :started,
+      :http/server :started,
+      :logger/config :started,
+      :logger/instance :started})
+
+  (= (signal-flow started :gx/stop :http/handler)
+     [:http/server :http/handler])
+
+  (= (signal-flow started :gx/start :http/handler)
+     [:http/router :http/handler])
+  )
