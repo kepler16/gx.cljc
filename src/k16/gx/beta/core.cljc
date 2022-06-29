@@ -26,11 +26,20 @@
    :signal-mapping {}
    :signals {:gx/start {:from-states #{:stopped :uninitialised}
                         :to-state :started}
+
+             :gx/suspend {:from-states #{:started}
+                          :deps-from :gx/start
+                          :to-state :suspended
+                          :order :reverse}
+
+             :gx/resume {:from-states #{:suspended}
+                         :deps-from :gx/start
+                         :to-state :started}
+
              :gx/stop {:from-states #{:started}
                        :to-state :stopped
-                       ;; this is used as a sign of anti-signal and aplies
-                       ;; it in reversed order
-                       :deps-from :gx/start}}})
+                       :deps-from :gx/start
+                       :order :reverse}}})
 
 #?(:clj
    (defn quiet-requiring-resolve

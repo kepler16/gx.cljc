@@ -9,6 +9,7 @@
    [:deps {:optional true} [:sequential keyword?]]
    [:from-states [:set keyword?]]
    [:to-state keyword?]
+   [:order {:optional true} [:enum :reverse :natural]]
    [:deps-from {:optional true} keyword?]])
 
 (def ?Context
