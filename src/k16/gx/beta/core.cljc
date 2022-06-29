@@ -342,10 +342,10 @@
                                  (seq))]
             (gx.err/throw-gx-err "Dependency errors" {:errors errors}))
           [nil
-           (let [ordered (map first sorted-raw)]
-             (if (:deps-from signal-config)
-               (reverse ordered)
-               ordered))])
+           (let [natural (map first sorted-raw)]
+             (if (= :reverse (:order signal-config))
+               (reverse natural)
+               natural))])
         (gx.err/throw-gx-err
          (str "Unknown signal key '" signal-key "'")))
       (catch ExceptionInfo e
@@ -562,7 +562,7 @@
 
   (def norm (normalize {:graph graph}))
 
-  (node-with-deps norm :gx/start :logger)
+  (selector-with-deps norm :gx/stop :server)
 
   (def started @(signal {:graph graph} :gx/start))
 
