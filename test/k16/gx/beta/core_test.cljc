@@ -268,7 +268,7 @@
                                     :context gx/default-context})
              expect (list {:internal-data
                            {:ex-message "java.lang.ArithmeticException: Divide by zero; Divide by zero",
-                            :args {:props {:z 1}, :value nil}},
+                            :args {:props {:z 1}, :value nil, :instance nil}},
                            :message "Signal processor error",
                            :error-type :node-signal,
                            :node-key :b,
@@ -288,7 +288,7 @@
                                  "Keyword is in unnamed module of loader "
                                  "'app'; java.lang.Number is in module "
                                  "java.base of loader 'bootstrap')"),
-                            :args {:props {}, :value nil}},
+                            :args {:props {}, :value nil, :instance nil}},
                            :message "Signal processor error",
                            :error-type :node-signal,
                            :node-key :c,
@@ -349,7 +349,7 @@
                          :signal-key :gx/start}
                         {:internal-data
                          {:ex-message "java.lang.ArithmeticException: Divide by zero; Divide by zero",
-                          :args {:props {:a 1}, :value nil}},
+                          :args {:props {:a 1}, :value nil, :instance nil}},
                          :message "Signal processor error",
                          :error-type :node-signal,
                          :node-key :b,
@@ -369,7 +369,7 @@
         (fn [gx-map]
           (is (= {:internal-data
                   {:ex-message "Invalid arity: 0",
-                   :args {:props {}, :value nil}},
+                   :args {:props {}, :value nil, :instance nil}},
                   :message "Signal processor error",
                   :error-type :node-signal, :node-key :a,
                   :node-contents '(get),
@@ -549,3 +549,25 @@
             :node-contents 'foo.bar/baz,
             :internal-data {:form-def 'foo.bar/baz, :token 'foo.bar/baz}}
            (first (:failures norm))))))
+
+(def ^:export proc-instance-component
+  {:gx/start {:gx/processor (fn [{:keys [props]}]
+                              {:gx/value props
+                               :gx/instance :some-instance})}
+   :gx/stop {:gx/processor (fn [{:keys [instance]}]
+                             (when-not (= :some-instance instance)
+                               (throw (ex-info "wrong instance" instance)))
+                             :stopped-val)}})
+
+(deftest instance-test
+  (let [graph {:my-comp {:gx/component 'k16.gx.beta.core-test/proc-instance-component
+                         :gx/props {:foo 1}}}]
+    (test-async
+     (p/let [started (gx/signal {:graph graph} :gx/start)
+             stopped (gx/signal started :gx/stop)]
+       [started stopped])
+     (fn [[started stopped]]
+       (is (= {:my-comp {:foo 1}} (gx/system-value started)))
+       (is (= {:my-comp :stopped-val} (gx/system-value stopped)))
+       (is (= :some-instance (-> started :graph :my-comp :gx/instance)))
+       (is (= nil (-> stopped :graph :my-comp :gx/instance)))))))

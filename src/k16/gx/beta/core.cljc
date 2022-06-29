@@ -475,12 +475,15 @@
                                    (run-processor
                                     processor
                                     {:props props-result
-                                     :value (:gx/value node)}
-                                    #?(:cljs err-ctx)))]
+                                     :value (:gx/value node)
+                                     :instance (:gx/instance node)}
+                                    #?(:cljs err-ctx)))
+                  new-value (or (:gx/value result) result)]
             (if-let [e (or validate-error error)]
               (assoc node :gx/failure e)
               (-> node
-                  (assoc :gx/value result)
+                  (assoc :gx/value new-value)
+                  (assoc :gx/instance (:gx/instance result))
                   (assoc :gx/state to-state)))))
 
         :else (assoc node :gx/state to-state)))))
