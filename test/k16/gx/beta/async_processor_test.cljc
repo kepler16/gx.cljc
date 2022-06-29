@@ -1,6 +1,7 @@
 (ns k16.gx.beta.async-processor-test
   (:require [k16.gx.beta.core :as gx]
             [promesa.core :as p]
+            [test-utils :refer [test-async]]
             #?(:clj [clojure.test :as t :refer [deftest is]])
             #?(:cljs [cljs.test :as t :refer-macros [deftest is]])))
 
@@ -21,17 +22,11 @@
 (deftest async-success-component-test
   (let [graph {:my-component
                {:gx/component 'k16.gx.beta.async-processor-test/my-component
-                :gx/props {:foo :bar}}}
-        started (gx/signal {:graph graph} :gx/start)]
-    #?(:clj (is (= "{:foo :bar}"
-                   (-> (gx/system-value @started)
-                       :my-component)))
-       :cljs (t/async
-              done (p/then started (fn [s]
-                                     (is (= "{:foo :bar}"
-                                            (-> (gx/system-value s)
-                                                :my-component)))
-                                     (done)))))))
+                :gx/props {:foo :bar}}}]
+    (test-async (gx/signal {:graph graph} :gx/start)
+                (fn [started]
+                  (is (= "{:foo :bar}" (-> (gx/system-value started)
+                                           :my-component)))))))
 
 (defn- run-check [s]
   (is (= {:foo :bar}
@@ -51,19 +46,13 @@
   (let [graph {:my-component
                {:gx/component
                 'k16.gx.beta.async-processor-test/my-component-reject
-                :gx/props {:foo :bar}}}
-        started (gx/signal {:graph graph} :gx/start)]
-    #?(:clj (run-check @started)
-       :cljs (t/async
-              done (p/then started (fn [s] (run-check s) (done)))))))
+                :gx/props {:foo :bar}}}]
+    (test-async (gx/signal {:graph graph} :gx/start) run-check)))
 
 #_{:clj-kondo/ignore [:clojure-lsp/unused-public-var]}
 (deftest async-exception-component-test
   (let [graph {:my-component
                {:gx/component
                 'k16.gx.beta.async-processor-test/my-component-exception
-                :gx/props {:foo :bar}}}
-        started (gx/signal {:graph graph} :gx/start)]
-    #?(:clj (run-check @started)
-       :cljs (t/async
-              done (p/then started (fn [s] (run-check s) (done)))))))
+                :gx/props {:foo :bar}}}]
+    (test-async (gx/signal {:graph graph} :gx/start) run-check)))

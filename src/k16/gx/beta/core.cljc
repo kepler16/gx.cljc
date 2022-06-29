@@ -405,6 +405,7 @@
        [nil @(p/do (processor arg-map))]
        (catch Throwable e
          [(wrap-error e arg-map) nil]))))
+
 #?(:cljs
    (defn- run-processor
      "CLJS version with error context propagation"
