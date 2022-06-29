@@ -317,49 +317,30 @@
        (into {})))
 
 (defn topo-sort
-  "Sorts graph nodes according to signal topology, returns vector of
-   [error, sorted nodes]"
-  ([gx-map signal-key]
-   (topo-sort gx-map signal-key #{}))
-  ([{:keys [context graph]} signal-key priority-selector]
-   (with-err-ctx {:error-type :deps-sort :signal-key signal-key}
-     (try
-       (if-let [signal-config (get-in context [:signals signal-key])]
-         (let [deps-from (or (:deps-from signal-config) signal-key)
-               selector-deps (reduce (fn [acc k]
-                                       (->> [k deps-from :gx/deps]
-                                            (get-in graph)
-                                            (set)
-                                            (assoc acc k)))
-                                     {} priority-selector)
-               graph-deps
-               (->> deps-from
-                    (graph-dependencies graph)
-                    (map (fn [[k deps :as signal-deps]]
-                           (let [node-selector
-                                 (->> selector-deps
-                                      (filter (fn [[_ d]] (not (contains? d k))))
-                                      (map first)
-                                      (set))]
-                             (if (contains? node-selector k)
-                               signal-deps
-                               [k (into deps node-selector)]))))
-                    (into {}))
-               sorted-raw (impl/sccs graph-deps)]
-           (when-let [errors (->> sorted-raw
-                                  (impl/dependency-errors graph-deps)
-                                  (map impl/human-render-dependency-error)
-                                  (seq))]
-             (gx.err/throw-gx-err "Dependency errors" {:errors errors}))
-           [nil
-            (let [topo-sorted (map first sorted-raw)]
-              ;; if signal takes deps from another signal then it is anti-signal
-              (if (:deps-from signal-config)
-                (reverse topo-sorted)
-                topo-sorted))])
-         (gx.err/throw-gx-err (str "Unknown signal key '" signal-key "'")))
-       (catch ExceptionInfo e
-         [(assoc (ex-data e) :message (ex-message e))])))))
+  "Sorts graph nodes according to signal ordering, returns vector of
+   [error, sorted-nodes]"
+  [{:keys [context graph]} signal-key]
+  (with-err-ctx {:error-type :deps-sort :signal-key signal-key}
+    (try
+      (if-let [signal-config (get-in context [:signals signal-key])]
+        (let [deps-from (or (:deps-from signal-config)
+                            signal-key)
+              graph-deps (graph-dependencies graph deps-from)
+              sorted-raw (impl/sccs graph-deps)]
+          (when-let [errors (->> sorted-raw
+                                 (impl/dependency-errors graph-deps)
+                                 (map impl/human-render-dependency-error)
+                                 (seq))]
+            (gx.err/throw-gx-err "Dependency errors" {:errors errors}))
+          [nil
+           (let [ordered (map first sorted-raw)]
+             (if (:deps-from signal-config)
+               (reverse ordered)
+               ordered))])
+        (gx.err/throw-gx-err
+         (str "Unknown signal key '" signal-key "'")))
+      (catch ExceptionInfo e
+        [(assoc (ex-data e) :message (ex-message e))]))))
 
 (defn get-component-props
   [graph property-key]
@@ -500,12 +481,40 @@
     (update gx-map :failures conj failure)
     gx-map))
 
+(defn selector-with-deps
+  "Returns a node with its dependencies as a list of keys
+   for a specific selector (signal-key + node-key)"
+  [{:keys [graph context] :as gx-map} signal-key node-key]
+  (let [signal (signal-key (:signals context))
+        deps-from (:deps-from signal)
+        order (:order signal)
+        signal-key' (or deps-from signal-key)
+        signal-deps (-> graph node-key signal-key' :gx/deps set)
+        dep-nodes (->> graph
+                       (map (fn [[k n]] [k (signal-key' n)]))
+                       (filter (fn [[k {:gx/keys [deps]}]]
+                                 (if (= :reverse order)
+                                   (contains? (set deps) node-key)
+                                   (contains? signal-deps k))))
+                       (map first))]
+    (-> (map #(selector-with-deps gx-map signal-key %) dep-nodes)
+        (flatten)
+        (conj node-key))))
+
 (defn signal
+  "Send signal to the graph or to its subset if selectors are passed.
+   Selectors is a set of top level graph keys, signal will be executed on
+   selectors and its dependencies according to signal ordering."
   ([gx-map signal-key]
-   (signal gx-map signal-key #{}))
-  ([gx-map signal-key priority-selector]
+   (signal gx-map signal-key nil))
+  ([gx-map signal-key selector]
    (let [gx-map (normalize (dissoc gx-map :failures))
-         [error sorted] (topo-sort gx-map signal-key priority-selector)
+         partial-selector (some->> selector
+                                   (seq)
+                                   (map #(selector-with-deps gx-map signal-key %))
+                                   (flatten)
+                                   (set))
+         [error sorted] (topo-sort gx-map signal-key)
          gx-map (if error
                   (update gx-map :failures conj error)
                   gx-map)]
@@ -516,11 +525,66 @@
          (cond
            (seq sorted)
            (p/let [node-key (first sorted)
-                   node (with-err-ctx {:error-type :node-signal
-                                       :signal-key signal-key
-                                       :node-key node-key}
-                          (node-signal gxm node-key signal-key))
-                   next-gxm (assoc-in gxm [:graph node-key] node)]
+                   node (when (or (not partial-selector)
+                                  (contains? partial-selector node-key))
+                          (with-err-ctx {:error-type :node-signal
+                                         :signal-key signal-key
+                                         :node-key node-key}
+                            (node-signal gxm node-key signal-key)))
+                   next-gxm (if node
+                              (assoc-in gxm [:graph node-key] node)
+                              gxm)]
              (p/recur (merge-node-failure next-gxm node) (rest sorted)))
 
            :else gxm))))))
+
+(comment
+  (def graph {:options {:port 8080}
+              :router {:some "router"}
+              :handler {:router '(gx/ref :router)}
+              :server {:opts '(gx/ref :options)
+                       :handler '(gx/ref :handler)}
+              :config-logger {:some "logger config"}
+              :logger {:config '(gx/ref :config-logger)}})
+
+  (def norm (normalize {:graph graph}))
+
+  (node-with-deps norm :gx/start :logger)
+
+  (def started @(signal {:graph graph} :gx/start))
+
+
+  (= (system-state started)
+     {:options :started,
+      :router :started,
+      :handler :started,
+      :server :started,
+      :config-logger :started,
+      :logger :started})
+
+  (def partial-stop @(signal started :gx/stop #{:handler}))
+  (= (system-state partial-stop)
+     {:options :started,
+      :router :started,
+      :handler :stopped,
+      :server :stopped,
+      :config-logger :started,
+      :logger :started})
+
+  (def partial-start @(signal partial-stop :gx/start #{:handler}))
+  (= (system-state partial-start)
+     {:options :started,
+      :router :started,
+      :handler :started,
+      :server :stopped,
+      :config-logger :started,
+      :logger :started})
+
+  (def full-start @(signal partial-start :gx/start #{:server}))
+  (= (system-state full-start)
+     {:options :started,
+      :router :started,
+      :handler :started,
+      :server :started,
+      :config-logger :started,
+      :logger :started}))
