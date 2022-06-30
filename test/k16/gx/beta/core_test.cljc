@@ -268,7 +268,7 @@
                                     :context gx/default-context})
              expect (list {:internal-data
                            {:ex-message "java.lang.ArithmeticException: Divide by zero; Divide by zero",
-                            :args {:props {:z 1}, :value nil, :instance nil}},
+                            :args {:props {:z 1}, :value nil, :state :uninitialised, :instance nil}},
                            :message "Signal processor error",
                            :error-type :node-signal,
                            :node-key :b,
@@ -288,7 +288,7 @@
                                  "Keyword is in unnamed module of loader "
                                  "'app'; java.lang.Number is in module "
                                  "java.base of loader 'bootstrap')"),
-                            :args {:props {}, :value nil, :instance nil}},
+                            :args {:props {}, :value nil, :state :uninitialised, :instance nil}},
                            :message "Signal processor error",
                            :error-type :node-signal,
                            :node-key :c,
@@ -359,7 +359,7 @@
                          :signal-key :gx/start}
                         {:internal-data
                          {:ex-message "java.lang.ArithmeticException: Divide by zero; Divide by zero",
-                          :args {:props {:a 1}, :value nil, :instance nil}},
+                          :args {:props {:a 1}, :state :uninitialised, :value nil, :instance nil}},
                          :message "Signal processor error",
                          :error-type :node-signal,
                          :node-key :b,
