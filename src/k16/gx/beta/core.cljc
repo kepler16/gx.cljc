@@ -1,8 +1,7 @@
 (ns k16.gx.beta.core
   (:refer-clojure :exclude [ref])
   #?(:cljs (:require-macros [k16.gx.beta.error-context :refer [with-err-ctx]]))
-  (:require [clojure.walk :as walk]
-            [malli.core :as m]
+  (:require [malli.core :as m]
             [malli.error :as me]
             [promesa.core :as p]
             [k16.gx.beta.impl :as impl]
@@ -10,13 +9,6 @@
             [k16.gx.beta.errors :as gx.err]
             #?(:clj [k16.gx.beta.error-context :refer [with-err-ctx]]))
   (:import #?(:clj [clojure.lang ExceptionInfo])))
-
-(def locals #{'gx/ref 'gx/ref-keys})
-
-(defn local-form?
-  [form]
-  (and (seq? form)
-       (locals (first form))))
 
 (def default-context
   {:initial-state :uninitialised
@@ -41,85 +33,6 @@
                        :deps-from :gx/start
                        :order :reverse}}})
 
-#?(:clj
-   (defn quiet-requiring-resolve
-     [sym]
-     (try
-       (requiring-resolve sym)
-       (catch Throwable _ nil))))
-
-(defn resolve-symbol
-  [sym]
-  (when (symbol? sym)
-    #?(:cljs (impl/namespace-symbol sym)
-       :clj (some-> sym
-                    (impl/namespace-symbol)
-                    (quiet-requiring-resolve)
-                    (var-get)))))
-
-(defn ref
-  [key]
-  (list 'gx/ref key))
-
-(defn ref-keys
-  [& keys]
-  (apply list (conj keys 'gx/ref-keys)))
-
-(defn parse-local
-  [env form]
-  (condp = (first form)
-    'gx/ref (get env (second form))
-
-    'gx/ref-keys (select-keys env (second form))))
-
-(defn postwalk-evaluate
-  "A postwalk runtime signal processor evaluator, works most of the time.
-  Doesn't support special symbols and macros, basically just function application.
-  For cljs, consider compiled components or sci-evaluator, would require allowing
-  for swappable evaluation stategies. Point to docs, to inform how to swap evaluator,
-  or alternative ways to specify functions (that get compiled) that can be used."
-  [props form]
-  (walk/postwalk
-   (fn [x]
-     (cond
-       (local-form? x)
-       (parse-local props x)
-
-       (and (seq? x) (ifn? (first x)))
-       (apply (first x) (rest x))
-
-       :else x))
-   form))
-
-(defn form->runnable [form-def]
-  (let [props* (atom #{})
-        resolved-form
-        (->> form-def
-             (walk/postwalk
-              (fn [sub-form]
-                (cond
-                  (locals sub-form) sub-form
-
-                  (local-form? sub-form)
-                  (do (swap! props* concat (-> sub-form rest flatten))
-                      sub-form)
-
-                  (special-symbol? sub-form)
-                  (gx.err/throw-gx-err "Special forms are not supported"
-                                       {:form-def form-def
-                                        :token sub-form})
-
-                  (resolve-symbol sub-form) (resolve-symbol sub-form)
-
-                  (symbol? sub-form)
-                  (gx.err/throw-gx-err "Unable to resolve symbol"
-                                       {:form-def form-def
-                                        :token sub-form})
-
-                  :else sub-form))))]
-    {:env @props*
-     :form resolved-form}))
-
 (defn normalize-signal-def [signal-def]
   (let [;; is this map a map based def, or a runnable form
         def? (and (map? signal-def)
@@ -130,9 +43,9 @@
         with-pushed-down-form
         (if def?
           signal-def
-          (let [{:keys [form env]} (form->runnable signal-def)]
+          (let [{:keys [form env]} (impl/form->runnable signal-def)]
             {:gx/processor (fn auto-signal-processor [{:keys [props]}]
-                             (postwalk-evaluate props form))
+                             (impl/postwalk-evaluate props form))
              :gx/deps env
              :gx/resolved-props (->> env
                                      (map (fn [dep]
@@ -140,87 +53,17 @@
                                      (into {}))}))
         resolved-props-fn (some-> with-pushed-down-form
                                   :gx/props-fn
-                                  (resolve-symbol))
+                                  (impl/resolve-symbol))
         with-resolved-props
         (if (:gx/resolved-props with-pushed-down-form)
           with-pushed-down-form
-          (let [{:keys [form env]} (form->runnable
+          (let [{:keys [form env]} (impl/form->runnable
                                     (:gx/props with-pushed-down-form))]
             (merge with-pushed-down-form
                    {:gx/resolved-props form
                     :gx/resolved-props-fn resolved-props-fn
                     :gx/deps env})))]
     with-resolved-props))
-
-(defn push-down-props
-  [{{:keys [props-signals]} :normalize} {:gx/keys [props] :as node-def}]
-  (if (and (seq props) (seq props-signals))
-    (reduce-kv (fn [m k v]
-                 (if (and (contains? props-signals k)
-                          (not (:gx/props v)))
-                   (assoc-in m [k :gx/props] props)
-                   m))
-               node-def
-               node-def)
-    node-def))
-
-(defn remap-signals
-  [from-signals to-signals]
-  (cond
-    (and (seq from-signals) (seq to-signals))
-    (if from-signals
-      (->> to-signals
-           (map (fn [[k v]]
-                  [k (v from-signals)]))
-           (into {}))
-      to-signals)
-
-    (seq from-signals) from-signals
-
-    :else to-signals))
-
-(defn flatten-component
-  "Flattens nested components by creating one root component using
-   signal mappings from context (if any)"
-  [context root-component]
-  (let [root-component (assoc root-component
-                              :gx/signal-mapping
-                              (or
-                               (:gx/signal-mapping root-component)
-                               (:signal-mapping context)))]
-    (loop [{:gx/keys [component signal-mapping] :as current} root-component]
-      (if-let [nested component]
-        (recur (update nested :gx/signal-mapping
-                       #(remap-signals % signal-mapping)))
-        (if-let [mapping (seq (:gx/signal-mapping current))]
-          (->> mapping
-               (map (fn [[k v]]
-                      [k (get current v)]))
-               (into root-component))
-          (dissoc current :gx/signal-mapping))))))
-
-(defn resolve-component
-  "Resolve component by it's symbol and validate against malli schema"
-  [context component]
-  (when component
-    (with-err-ctx {:error-type :normalize-node-component}
-      (let [resolved (some->> component
-                              (resolve-symbol)
-                              (flatten-component context))
-            [issues schema] (when resolved
-                              (gx.schema/validate-component context resolved))]
-        (cond
-          (not resolved)
-          (gx.err/throw-gx-err "Component could not be resolved"
-                               {:component component})
-
-          issues
-          (gx.err/throw-gx-err "Component schema error"
-                               {:component resolved
-                                :component-schema schema
-                                :schema-error (set issues)})
-
-          :else resolved)))))
 
 (defn normalize-node-def
   "Given a component definition, "
@@ -251,13 +94,13 @@
                    (into {auto-signal node-definition})))
             component (some->> with-pushed-down-form
                                :gx/component
-                               (resolve-component context))
+                               (impl/resolve-component context))
             ;; merge in component
             with-component (impl/deep-merge
                             component (dissoc with-pushed-down-form
                                               :gx/component))
             normalized-def (merge
-                            (push-down-props context with-component)
+                            (impl/push-down-props context with-component)
                             {:gx/state initial-state
                              :gx/value nil})
 
@@ -274,7 +117,7 @@
                {:gx/type (if def? :component :static)
                 :gx/normalized? true})))))
 
-(defn signal-dependencies
+(defn- signal-dependencies
   [{:keys [signals]}]
   (->> signals
        (map (fn [[k v]]
@@ -358,16 +201,16 @@
               [k (get node property-key)]))
        (into {})))
 
-(defn system-failure [gx-map]
+(defn failures [gx-map]
   (get-component-props (:graph gx-map) :gx/failure))
 
-(defn system-value [gx-map]
+(defn values [gx-map]
   (get-component-props (:graph gx-map) :gx/value))
 
-(defn system-state [gx-map]
+(defn states [gx-map]
   (get-component-props (:graph gx-map) :gx/state))
 
-(defn props-validate-error
+(defn validate-props
   [schema props]
   (when-let [error (and schema (m/explain schema props))]
     (with-err-ctx {:error-type :props-validation}
@@ -445,9 +288,9 @@
         ;;         (-> node deps-from :gx/props)
         ;;         props)
         dep-nodes (select-keys graph deps)
-        dep-nodes-vals (system-value {:graph dep-nodes})
+        dep-nodes-vals (values {:graph dep-nodes})
         failed-dep-node-keys (->> {:graph dep-nodes}
-                                  (system-failure)
+                                  (failures)
                                   (filter second)
                                   (map first))]
     (with-err-ctx {:node-contents (node-key initial-graph)}
@@ -466,11 +309,12 @@
         ;; Binding vars is not passed to nested async code
         ;; Workaround for CLJS: propagating error context manually
         (let [err-ctx gx.err/*err-ctx*]
-          (p/let [props-result (if (fn? resolved-props-fn)
-                                 (run-props-fn resolved-props-fn dep-nodes-vals)
-                                 (postwalk-evaluate dep-nodes-vals resolved-props))
+          (p/let [props-result
+                  (if (fn? resolved-props-fn)
+                    (run-props-fn resolved-props-fn dep-nodes-vals)
+                    (impl/postwalk-evaluate dep-nodes-vals resolved-props))
                   validate-error (with-err-ctx err-ctx
-                                   (props-validate-error props-schema props-result))
+                                   (validate-props props-schema props-result))
                   [error result] (when-not validate-error
                                    (run-processor
                                     processor

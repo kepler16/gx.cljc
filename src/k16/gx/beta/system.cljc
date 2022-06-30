@@ -29,21 +29,21 @@
    (states system-name nil))
   ([system-name node-keys]
    (when-let [gx-map (get @registry* system-name)]
-     (filter-nodes (gx/system-state gx-map) node-keys))))
+     (filter-nodes (gx/states gx-map) node-keys))))
 
 (defn values
   ([system-name]
    (values system-name nil))
   ([system-name node-keys]
    (when-let [gx-map (get @registry* system-name)]
-     (filter-nodes (gx/system-value gx-map) node-keys))))
+     (filter-nodes (gx/values gx-map) node-keys))))
 
 (defn node-failures
   ([system-name]
    (node-failures system-name nil))
   ([system-name node-keys]
    (when-let [gx-map (get @registry* system-name)]
-     (filter-nodes (gx/system-failure gx-map) node-keys))))
+     (filter-nodes (gx/failures gx-map) node-keys))))
 
 (defn failures
   [system-name]

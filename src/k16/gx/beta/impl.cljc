@@ -1,6 +1,12 @@
 (ns k16.gx.beta.impl
-  #?(:cljs (:require [clojure.string :as string]
-                     [k16.gx.beta.registry :as gx.reg])))
+  (:refer-clojure :exclude [ref])
+  #?(:cljs (:require-macros [k16.gx.beta.error-context :refer [with-err-ctx]]))
+  (:require [clojure.walk :as walk]
+            [k16.gx.beta.errors :as gx.err]
+            [k16.gx.beta.schema :as gx.schema]
+            #?(:cljs [clojure.string :as string])
+            #?(:cljs [k16.gx.beta.registry :as gx.reg])
+            #?(:clj [k16.gx.beta.error-context :refer [with-err-ctx]])))
 
 (defn sccs
   "Returns a topologically sorted list of strongly connected components.
@@ -152,3 +158,151 @@
              (ex-message ex)
 
              :else ex)))
+
+(def locals #{'gx/ref 'gx/ref-keys})
+
+(defn local-form?
+  [form]
+  (and (seq? form)
+       (locals (first form))))
+
+(defn parse-local
+  [env form]
+  (condp = (first form)
+    'gx/ref (get env (second form))
+
+    'gx/ref-keys (select-keys env (second form))))
+
+(defn postwalk-evaluate
+  "A postwalk runtime signal processor evaluator, works most of the time.
+  Doesn't support special symbols and macros, basically just function application.
+  For cljs, consider compiled components or sci-evaluator, would require allowing
+  for swappable evaluation stategies. Point to docs, to inform how to swap evaluator,
+  or alternative ways to specify functions (that get compiled) that can be used."
+  [props form]
+  (walk/postwalk
+   (fn [x]
+     (cond
+       (local-form? x)
+       (parse-local props x)
+
+       (and (seq? x) (ifn? (first x)))
+       (apply (first x) (rest x))
+
+       :else x))
+   form))
+
+#?(:clj
+   (defn quiet-requiring-resolve
+     [sym]
+     (try
+       (requiring-resolve sym)
+       (catch Throwable _ nil))))
+
+(defn resolve-symbol
+  [sym]
+  (when (symbol? sym)
+    #?(:cljs (namespace-symbol sym)
+       :clj (some-> sym
+                    (namespace-symbol)
+                    (quiet-requiring-resolve)
+                    (var-get)))))
+
+(defn form->runnable [form-def]
+  (let [props* (atom #{})
+        resolved-form
+        (->> form-def
+             (walk/postwalk
+              (fn [sub-form]
+                (cond
+                  (locals sub-form) sub-form
+
+                  (local-form? sub-form)
+                  (do (swap! props* concat (-> sub-form rest flatten))
+                      sub-form)
+
+                  (special-symbol? sub-form)
+                  (gx.err/throw-gx-err "Special forms are not supported"
+                                       {:form-def form-def
+                                        :token sub-form})
+
+                  (resolve-symbol sub-form) (resolve-symbol sub-form)
+
+                  (symbol? sub-form)
+                  (gx.err/throw-gx-err "Unable to resolve symbol"
+                                       {:form-def form-def
+                                        :token sub-form})
+
+                  :else sub-form))))]
+    {:env @props*
+     :form resolved-form}))
+
+(defn push-down-props
+  [{{:keys [props-signals]} :normalize} {:gx/keys [props] :as node-def}]
+  (if (and (seq props) (seq props-signals))
+    (reduce-kv (fn [m k v]
+                 (if (and (contains? props-signals k)
+                          (not (:gx/props v)))
+                   (assoc-in m [k :gx/props] props)
+                   m))
+               node-def
+               node-def)
+    node-def))
+
+(defn remap-signals
+  [from-signals to-signals]
+  (cond
+    (and (seq from-signals) (seq to-signals))
+    (if from-signals
+      (->> to-signals
+           (map (fn [[k v]]
+                  [k (v from-signals)]))
+           (into {}))
+      to-signals)
+
+    (seq from-signals) from-signals
+
+    :else to-signals))
+
+(defn flatten-component
+  "Flattens nested components by creating one root component using
+   signal mappings from context (if any)"
+  [context root-component]
+  (let [root-component (assoc root-component
+                              :gx/signal-mapping
+                              (or
+                               (:gx/signal-mapping root-component)
+                               (:signal-mapping context)))]
+    (loop [{:gx/keys [component signal-mapping] :as current} root-component]
+      (if-let [nested component]
+        (recur (update nested :gx/signal-mapping
+                       #(remap-signals % signal-mapping)))
+        (if-let [mapping (seq (:gx/signal-mapping current))]
+          (->> mapping
+               (map (fn [[k v]]
+                      [k (get current v)]))
+               (into root-component))
+          (dissoc current :gx/signal-mapping))))))
+
+(defn resolve-component
+  "Resolve component by it's symbol and validate against malli schema"
+  [context component]
+  (when component
+    (with-err-ctx {:error-type :normalize-node-component}
+      (let [resolved (some->> component
+                              (resolve-symbol)
+                              (flatten-component context))
+            [issues schema] (when resolved
+                              (gx.schema/validate-component context resolved))]
+        (cond
+          (not resolved)
+          (gx.err/throw-gx-err "Component could not be resolved"
+                               {:component component})
+
+          issues
+          (gx.err/throw-gx-err "Component schema error"
+                               {:component resolved
+                                :component-schema schema
+                                :schema-error (set issues)})
+
+          :else resolved)))))

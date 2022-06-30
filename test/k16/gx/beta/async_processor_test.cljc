@@ -25,18 +25,18 @@
                 :gx/props {:foo :bar}}}]
     (test-async (gx/signal {:graph graph} :gx/start)
                 (fn [started]
-                  (is (= "{:foo :bar}" (-> (gx/system-value started)
+                  (is (= "{:foo :bar}" (-> (gx/values started)
                                            :my-component)))))))
 
 (defn- run-check [s]
   (is (= {:foo :bar}
-         #?(:clj (-> (gx/system-failure s)
+         #?(:clj (-> (gx/failures s)
                      :my-component
                      :internal-data
                      :ex
                      (ex-cause)
                      (ex-data))
-            :cljs (-> (gx/system-failure s)
+            :cljs (-> (gx/failures s)
                       :my-component
                       :internal-data
                       :ex)))))
