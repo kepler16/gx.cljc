@@ -4,7 +4,14 @@
 
 (defn test-async
   [promise check-fn]
-  #?(:clj (check-fn @promise)
-     :cljs (t/async done (p/then promise (fn [resolved]
-                                           (check-fn resolved)
-                                           (done))))))
+  #?(:clj (try (check-fn @promise)
+               (catch Throwable e
+                 (check-fn nil e)))
+     :cljs (t/async done
+                   (-> promise
+                       (p/then (fn [resolved]
+                                 (check-fn resolved)
+                                 (done)))
+                       (p/catch (fn [err]
+                                  (check-fn nil err)
+                                  (done)))))))
