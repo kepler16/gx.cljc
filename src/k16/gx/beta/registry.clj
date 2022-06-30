@@ -18,8 +18,8 @@
     @syms*))
 
 (defmacro load-graph!
-  "Loads graph from path. Additionally on cljs side, scans for symbols
-   and populates registry (advanced compilation support)"
+  "Loads graph from path. Additionally on cljs side scans for symbols
+   and populates registry (advanced compilation support)."
   [path]
   (let [graph# (edn/read-string (slurp path))]
     (if (:ns &env)

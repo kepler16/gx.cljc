@@ -2,15 +2,16 @@
   (:require [k16.gx.beta.core :as gx]
             [k16.gx.beta.registry :as gx.reg :include-macros true]
             [k16.gx.beta.schema :as gx.schema]
+            [test-utils :refer [test-async]]
+            [promesa.core :as p]
             [clojure.test :as t :refer [deftest is testing]]
-            #?@(:cljs [[promesa.core :as p]
-                       [k16.gx.beta.impl :as impl]])))
+            #?(:cljs [k16.gx.beta.impl :as impl])))
 
 (def TestCoponentProps
   [:map [:a [:map [:nested-a pos-int?]]]])
 
 ;; this component is linked in fixtures/graphs.edn
-(def test-component
+(def ^:export test-component
   {:gx/start {:gx/props-schema TestCoponentProps
               :gx/props {:a (gx/ref :a)}
               :gx/processor
@@ -19,7 +20,7 @@
                   (atom
                    (assoc a :nested-a-x2 (* 2 (:nested-a a))))))}})
 
-(def test-component-2
+(def ^:export test-component-2
   {:gx/start {:gx/props-schema TestCoponentProps
               :gx/props {:a (gx/ref :a)}
               :gx/processor
@@ -41,40 +42,7 @@
   )
 
 (deftest graph-tests
-  (let [run-checks
-        (fn [gx-started gx-stopped]
-          (testing "graph should start correctly"
-            (is (= {:a :started, :z :started, :y :started,
-                    :b :started :c :started :x :started}
-                   (gx/system-state gx-started))
-                "all nodes should be started")
-            (is (= {:a {:nested-a 1}, :z 1, :y nil, :b 3}
-                   (dissoc (gx/system-value gx-started) :c :x)))
-
-            (is (= {:nested-a 1, :nested-a-x2 2}
-                   @(:c (gx/system-value gx-started))))
-
-            (is (= {:nested-a 1, :some-value 3}
-                   @(:x (gx/system-value gx-started)))))
-
-          (testing "graph should stop correctly, nodes without signal handler
-                    should not change value but state"
-            (is (= {:a :stopped
-                    :z :stopped
-                    :y :stopped
-                    :b :stopped,
-                    :c :stopped,
-                    :x :stopped}
-                   (gx/system-state gx-stopped))
-                "all nodes should be stopped")
-            (is (= {:a {:nested-a 1}, :z 1, :y nil, :b nil}
-                   (select-keys (gx/system-value gx-stopped)
-                                [:a :z :y :b])))
-            (is (= {:nested-a 1, :nested-a-x2 2}
-                   @(:c (gx/system-value gx-stopped))))
-            (is (= {:nested-a 1, :some-value 3}
-                   @(:x (gx/system-value gx-stopped))))))
-        graph (load-config)
+  (let [graph (load-config)
         gx-map (gx/normalize {:context context
                               :graph graph})]
     (testing "normalization structure should be valid"
@@ -89,16 +57,42 @@
              (second (gx/topo-sort gx-map :gx/stop)))
           "should be reverse-topologically"))
 
-    #?(:clj (let [gx-started @(gx/signal gx-map :gx/start)
-                  gx-stopped @(gx/signal gx-started :gx/stop)]
-              (run-checks gx-started gx-stopped))
+    (test-async
+     (p/let [gx-started (gx/signal gx-map :gx/start)
+             gx-stopped (gx/signal gx-started :gx/stop)]
+       [gx-started gx-stopped])
+     (fn [[gx-started gx-stopped]]
+       (testing "graph should start correctly"
+         (is (= {:a :started, :z :started, :y :started,
+                 :b :started :c :started :x :started}
+                (gx/system-state gx-started))
+             "all nodes should be started")
+         (is (= {:a {:nested-a 1}, :z 1, :y nil, :b 3}
+                (dissoc (gx/system-value gx-started) :c :x)))
 
-       :cljs (t/async
-              done
-              (p/let [gx-started (gx/signal gx-map :gx/start)
-                      gx-stopped (gx/signal gx-started :gx/stop)]
-                (run-checks gx-started gx-stopped)
-                (done))))))
+         (is (= {:nested-a 1, :nested-a-x2 2}
+                @(:c (gx/system-value gx-started))))
+
+         (is (= {:nested-a 1, :some-value 3}
+                @(:x (gx/system-value gx-started)))))
+
+       (testing "graph should stop correctly, nodes without signal handler
+                    should not change value but state"
+         (is (= {:a :stopped
+                 :z :stopped
+                 :y :stopped
+                 :b :stopped,
+                 :c :stopped,
+                 :x :stopped}
+                (gx/system-state gx-stopped))
+             "all nodes should be stopped")
+         (is (= {:a {:nested-a 1}, :z 1, :y nil, :b nil}
+                (select-keys (gx/system-value gx-stopped)
+                             [:a :z :y :b])))
+         (is (= {:nested-a 1, :nested-a-x2 2}
+                @(:c (gx/system-value gx-stopped))))
+         (is (= {:nested-a 1, :some-value 3}
+                @(:x (gx/system-value gx-stopped)))))))))
 
 (deftest failed-normalization-test
   (let [custom-context {:initial-state :uninitialised
@@ -128,32 +122,27 @@
            failure))))
 
 (deftest component-support-test
-  (let [run-checks (fn [gx-started gx-stopped]
-                     (is (= {:a :started, :c :started}
-                            (gx/system-state gx-started)))
-                     (is (= {:nested-a 1}
-                            (:a (gx/system-value gx-started))))
-                     (is (= {:nested-a 1, :nested-a-x2 2}
-                            @(:c (gx/system-value gx-started))))
-                     (is (= {:a :stopped, :c :stopped}
-                            (gx/system-state gx-stopped)))
-                     (is (= {:nested-a 1}
-                            (:a (gx/system-value gx-stopped))))
-                     (is (= {:nested-a 1, :nested-a-x2 2}
-                            @(:c (gx/system-value gx-stopped)))))
-        graph {:a {:nested-a 1}
+  (let [graph {:a {:nested-a 1}
                :c {:gx/component 'k16.gx.beta.core-test/test-component}}
         gx-map (gx/normalize {:context context
                               :graph graph})]
-    #?(:clj (let [gx-started @(gx/signal gx-map :gx/start)
-                  gx-stopped @(gx/signal gx-started :gx/stop)]
-              (run-checks gx-started gx-stopped))
-       :cljs (t/async
-              done
-              (p/let [gx-started (gx/signal gx-map :gx/start)
-                      gx-stopped (gx/signal gx-started :gx/stop)]
-                (run-checks gx-started gx-stopped)
-                (done))))))
+    (test-async
+     (p/let [gx-started (gx/signal gx-map :gx/start)
+             gx-stopped (gx/signal gx-started :gx/stop)]
+       [gx-started gx-stopped])
+     (fn [[gx-started gx-stopped]]
+       (is (= {:a :started, :c :started}
+              (gx/system-state gx-started)))
+       (is (= {:nested-a 1}
+              (:a (gx/system-value gx-started))))
+       (is (= {:nested-a 1, :nested-a-x2 2}
+              @(:c (gx/system-value gx-started))))
+       (is (= {:a :stopped, :c :stopped}
+              (gx/system-state gx-stopped)))
+       (is (= {:nested-a 1}
+              (:a (gx/system-value gx-stopped))))
+       (is (= {:nested-a 1, :nested-a-x2 2}
+              @(:c (gx/system-value gx-stopped))))))))
 
 (deftest subsequent-normalizations-test
   (let [gx-norm-1 (gx/normalize {:context context
@@ -197,17 +186,14 @@
                 (atom props))}})
 
 (deftest props-fn-test
-  (let [run-checks
-        (fn [gx-started]
-          (is (= @(:comp (gx/system-value gx-started))
-                 {:name "John" :last-name "Doe" :full-name "John Doe"})))
-        graph (gx.reg/load-graph! "test/fixtures/props_fn.edn")
+  (let [graph (gx.reg/load-graph! "test/fixtures/props_fn.edn")
         gx-map {:context context :graph graph}
         started (gx/signal gx-map :gx/start)]
-    #?(:clj (run-checks @started)
-       :cljs (t/async done (p/then started (fn [s]
-                                             (run-checks s)
-                                             (done)))))))
+    (test-async
+     started
+     (fn [gx-started]
+       (is (= @(:comp (gx/system-value gx-started))
+              {:name "John" :last-name "Doe" :full-name "John Doe"}))))))
 
 (deftest postwalk-evaluate-test
   (let [env {:http/server {:port 8080}
@@ -270,7 +256,6 @@
               {:form-def '(some-not-found-symbol "stopping"),
                :token 'some-not-found-symbol}}
              failure))))
-
   #?(:clj
      (testing "processor failure"
        (let [graph {:a {:nested-a 1}
@@ -283,7 +268,7 @@
                                     :context gx/default-context})
              expect (list {:internal-data
                            {:ex-message "java.lang.ArithmeticException: Divide by zero; Divide by zero",
-                            :args {:props {:z 1}, :value nil}},
+                            :args {:props {:z 1}, :value nil, :instance nil}},
                            :message "Signal processor error",
                            :error-type :node-signal,
                            :node-key :b,
@@ -303,7 +288,7 @@
                                  "Keyword is in unnamed module of loader "
                                  "'app'; java.lang.Number is in module "
                                  "java.base of loader 'bootstrap')"),
-                            :args {:props {}, :value nil}},
+                            :args {:props {}, :value nil, :instance nil}},
                            :message "Signal processor error",
                            :error-type :node-signal,
                            :node-key :c,
@@ -324,27 +309,23 @@
                 (atom props))}})
 
 (deftest props-validation-test
-  (let [run-checks
-        (fn [gx-started]
-          (is (= {:internal-data
-                  {:props-value {:name "John", :last-name "Doe", :full-name "John Doe"},
-                   :props-schema [:map [:foo string?]],
-                   :schema-error {:foo ["missing required key"]}},
-                  :message "Props validation error",
-                  :error-type :props-validation,
-                  :node-key :comp,
-                  :node-contents
-                  #:gx{:component 'k16.gx.beta.core-test/props-validation-component,
-                       :start #:gx{:props-fn 'k16.gx.beta.core-test/my-props-fn}},
-                  :signal-key :gx/start}
-                 (first (:failures gx-started)))))
-        graph (gx.reg/load-graph! "test/fixtures/props_validation.edn")
-        gx-map {:context context :graph graph}
-        gx-started (gx/signal gx-map :gx/start)]
-    #?(:clj (run-checks @gx-started)
-       :cljs (t/async done (p/then gx-started (fn [s]
-                                                (run-checks s)
-                                                (done)))))))
+  (let [graph (gx.reg/load-graph! "test/fixtures/props_validation.edn")
+        gx-map {:context context :graph graph}]
+    (test-async
+     (gx/signal gx-map :gx/start)
+     (fn [gx-started]
+       (is (= {:internal-data
+               {:props-value {:name "John", :last-name "Doe", :full-name "John Doe"},
+                :props-schema [:map [:foo string?]],
+                :schema-error {:foo ["missing required key"]}},
+               :message "Props validation error",
+               :error-type :props-validation,
+               :node-key :comp,
+               :node-contents
+               #:gx{:component 'k16.gx.beta.core-test/props-validation-component,
+                    :start #:gx{:props-fn 'k16.gx.beta.core-test/my-props-fn}},
+               :signal-key :gx/start}
+              (first (:failures gx-started))))))))
 
 #?(:clj
    (deftest dependency-node-failures-test
@@ -368,7 +349,7 @@
                          :signal-key :gx/start}
                         {:internal-data
                          {:ex-message "java.lang.ArithmeticException: Divide by zero; Divide by zero",
-                          :args {:props {:a 1}, :value nil}},
+                          :args {:props {:a 1}, :value nil, :instance nil}},
                          :message "Signal processor error",
                          :error-type :node-signal,
                          :node-key :b,
@@ -380,28 +361,22 @@
                         (update-in [2 :internal-data] dissoc :ex))]
        (is (= expect failures)))))
 
-
-#?(:cljs (defn ^:export thrower-js []
-           (throw (ex-info "I am an error" {:foo "bar"}))))
-
 #?(:cljs
    (deftest processor-failure-test
      (let [graph {:a '(get)}]
-       (t/async
-        done
-        (p/then (gx/signal {:graph graph} :gx/start)
-                (fn [gx-map]
-                  (is (= {:internal-data
-                          {:ex-message "Invalid arity: 0",
-                           :args {:props {}, :value nil}},
-                          :message "Signal processor error",
-                          :error-type :node-signal, :node-key :a,
-                          :node-contents '(get),
-                          :signal-key :gx/start}
-                         (-> (:failures gx-map)
-                             (first)
-                             (update :internal-data dissoc :ex))))
-                  (done)))))))
+       (test-async
+        (gx/signal {:graph graph} :gx/start)
+        (fn [gx-map]
+          (is (= {:internal-data
+                  {:ex-message "Invalid arity: 0",
+                   :args {:props {}, :value nil, :instance nil}},
+                  :message "Signal processor error",
+                  :error-type :node-signal, :node-key :a,
+                  :node-contents '(get),
+                  :signal-key :gx/start}
+                 (-> (:failures gx-map)
+                     (first)
+                     (update :internal-data dissoc :ex)))))))))
 
 (def ^:export push-down-props-component
   {:gx/props (gx/ref-keys [:a])
@@ -499,39 +474,56 @@
                              nil)}})
 
 (deftest signal-selector-test
-  (let [flow (atom [])
-        graph {:logger-config {:foo "bar"}
+  (let [graph {:options {:port 8080}
+               :router {:some "router"}
+               :handler {:router '(gx/ref :router)}
+               :server {:opts '(gx/ref :options)
+                        :handler '(gx/ref :handler)}
+               :config-logger {:some "logger config"}
+               :logger {:config '(gx/ref :config-logger)}}
 
-               :logger {:gx/component 'k16.gx.beta.core-test/logger-component
-                        :gx/props {:flow flow
-                                   :config '(gx/ref :logger-config)}}
+        norm (gx/normalize {:graph graph})]
 
-               :options {:port 8080}
+    (is (= [:logger :config-logger] (gx/selector-with-deps norm :gx/start :logger)))
 
-               :db {:gx/component 'k16.gx.beta.core-test/db-component
-                    :gx/props {:flow flow}}
+    (test-async
+     (p/let [started (gx/signal {:graph graph} :gx/start)
+             partial-stop (gx/signal started :gx/stop #{:handler})
+             partial-start (gx/signal partial-stop :gx/start #{:handler})
+             full-start (gx/signal partial-start :gx/start #{:server})]
+       [started partial-stop partial-start full-start])
+     (fn [[started partial-stop partial-start full-start]]
+       (is (= (gx/system-state started)
+              {:options :started,
+               :router :started,
+               :handler :started,
+               :server :started,
+               :config-logger :started,
+               :logger :started}))
 
-               :server {:gx/component 'k16.gx.beta.core-test/server-component
-                        :gx/props {:opts '(gx/ref :options)
-                                   :flow flow}}}
-        norm (gx/normalize {:graph graph})
-        gx-started (gx/signal norm :gx/start #{:logger})]
-    (is (= nil (:failures norm)))
-    #?@(:clj [@gx-started
-              (is (= [:logger :db :server] @flow))
-              (reset! flow [])
-              @(gx/signal @gx-started :gx/stop #{:logger})
-              (is (= [:server :db :logger] @flow))]
-        :cljs [(t/async
-                done
-                (p/then gx-started
-                        (fn [s]
-                          (is (= [:logger :db :server] @flow))
-                          (reset! flow [])
-                          (p/then (gx/signal s :gx/stop #{:logger})
-                                  (fn [_]
-                                    (is (= [:server :db :logger] @flow))
-                                    (done))))))])))
+       (is (= (gx/system-state partial-stop)
+              {:options :started,
+               :router :started,
+               :handler :stopped,
+               :server :stopped,
+               :config-logger :started,
+               :logger :started}))
+
+       (is (= (gx/system-state partial-start)
+              {:options :started,
+               :router :started,
+               :handler :started,
+               :server :stopped,
+               :config-logger :started,
+               :logger :started}))
+
+       (is (= (gx/system-state full-start)
+              {:options :started,
+               :router :started,
+               :handler :started,
+               :server :started,
+               :config-logger :started,
+               :logger :started}))))))
 
 (deftest validate-context-test
   (let [context {:initial-state :uninitialised
@@ -557,3 +549,25 @@
             :node-contents 'foo.bar/baz,
             :internal-data {:form-def 'foo.bar/baz, :token 'foo.bar/baz}}
            (first (:failures norm))))))
+
+(def ^:export proc-instance-component
+  {:gx/start {:gx/processor (fn [{:keys [props]}]
+                              {:gx/value props
+                               :gx/instance :some-instance})}
+   :gx/stop {:gx/processor (fn [{:keys [instance]}]
+                             (when-not (= :some-instance instance)
+                               (throw (ex-info "wrong instance" instance)))
+                             :stopped-val)}})
+
+(deftest instance-test
+  (let [graph {:my-comp {:gx/component 'k16.gx.beta.core-test/proc-instance-component
+                         :gx/props {:foo 1}}}]
+    (test-async
+     (p/let [started (gx/signal {:graph graph} :gx/start)
+             stopped (gx/signal started :gx/stop)]
+       [started stopped])
+     (fn [[started stopped]]
+       (is (= {:my-comp {:foo 1}} (gx/system-value started)))
+       (is (= {:my-comp :stopped-val} (gx/system-value stopped)))
+       (is (= :some-instance (-> started :graph :my-comp :gx/instance)))
+       (is (= nil (-> stopped :graph :my-comp :gx/instance)))))))

@@ -9,6 +9,7 @@
    [:deps {:optional true} [:sequential keyword?]]
    [:from-states [:set keyword?]]
    [:to-state keyword?]
+   [:order {:optional true} [:enum :reverse :natural]]
    [:deps-from {:optional true} keyword?]])
 
 (def ?Context
@@ -51,7 +52,8 @@
    [:gx/failure {:optional true} any?]
    [:gx/type {:optional true} keyword?]
    [:gx/normalized? {:optional true} boolean?]
-   [:gx/value {:optional true} any?]])
+   [:gx/value {:optional true} any?]
+   [:gx/instance {:optional true} any?]])
 
 (defn create-component-schema
   [context]

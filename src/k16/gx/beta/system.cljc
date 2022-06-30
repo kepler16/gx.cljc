@@ -65,12 +65,12 @@
 (defn signal!
   "Sends signal to system synchronously in clojure, asynchronously in cljs"
   ([system-name signal-key]
-   (signal! system-name signal-key #{}))
-  ([system-name signal-key priority-selector]
+   (signal! system-name signal-key nil))
+  ([system-name signal-key selector]
    (when-let [gx-map (get @registry* system-name)]
      #?(:clj
         (swap! registry* assoc system-name
-               @(gx/signal gx-map signal-key priority-selector))
+               @(gx/signal gx-map signal-key selector))
         :cljs
-        (.then (gx/signal gx-map signal-key priority-selector)
+        (.then (gx/signal gx-map signal-key selector)
                (fn [v] (swap! registry* assoc system-name v)))))))
