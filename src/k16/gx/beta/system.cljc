@@ -81,7 +81,8 @@
 (comment
   (register! :sys {:graph {:a '(gx/ref :b)
                            :b '(gx/ref :a)
-                           :c '(gx/ref :z)}})
+                           :c '(gx/ref :z)
+                           :z {:gx/component 'non.existend/component}}})
   ;; clj
   @(signal! :sys :gx/start)
 

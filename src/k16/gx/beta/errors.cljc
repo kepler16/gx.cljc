@@ -163,7 +163,8 @@
 (defmethod humanize :normalize-node-component
   [{:keys [internal-data] :as error}]
   (humanize-error
-   error (tokenize "schema-error = " (:schema-error internal-data))))
+   error (tokenize "schema-error = " (:schema-error internal-data)
+                   "node-contents = " (:node-contents error))))
 
 (comment
   (println
@@ -177,4 +178,11 @@
                :component-schema [:map-of keyword?]
                :schema-error
                #{[:gx/start
-                  #:gx{:processor ["should be an fn" "should be a keyword"]}]}}})))
+                  #:gx{:processor ["should be an fn" "should be a keyword"]}]}}}))
+
+  (println
+   (humanize {:message "Component could not be resolved",
+              :error-type :normalize-node-component,
+              :node-key :z,
+              :node-contents #:gx{:component 'non.existend/component},
+              :internal-data {:component 'non.existend/component}})))
