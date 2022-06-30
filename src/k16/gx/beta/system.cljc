@@ -19,31 +19,24 @@
      gx-map)))
 
 (defn- filter-nodes
-  [graph node-keys]
-  (if (seq node-keys)
-    (select-keys graph node-keys)
+  [graph selector]
+  (if (seq selector)
+    (select-keys graph selector)
     graph))
 
 (defn states
   ([system-name]
    (states system-name nil))
-  ([system-name node-keys]
+  ([system-name selector]
    (when-let [gx-map (get @registry* system-name)]
-     (filter-nodes (gx/states gx-map) node-keys))))
+     (filter-nodes (gx/states gx-map) selector))))
 
 (defn values
   ([system-name]
    (values system-name nil))
-  ([system-name node-keys]
+  ([system-name selector]
    (when-let [gx-map (get @registry* system-name)]
-     (filter-nodes (gx/values gx-map) node-keys))))
-
-(defn node-failures
-  ([system-name]
-   (node-failures system-name nil))
-  ([system-name node-keys]
-   (when-let [gx-map (get @registry* system-name)]
-     (filter-nodes (gx/failures gx-map) node-keys))))
+     (filter-nodes (gx/values gx-map) selector))))
 
 (defn failures
   [system-name]
