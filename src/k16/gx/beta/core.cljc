@@ -320,6 +320,7 @@
                                     processor
                                     {:props props-result
                                      :value (:gx/value node)
+                                     :state (:gx/state node)
                                      :instance (:gx/instance node)}
                                     #?(:cljs err-ctx)))
                   new-value (or (:gx/value result) result)]
