@@ -50,13 +50,14 @@ TODO expand these:
 Configuration may contain gx/refs - references to a specific node value or
 a subset of its value. There are two kind of refs:
 - `gx/ref` - gets value of a node
-- `gx/ref-keys` - is a shorthand for `(select-keys (gx/ref :some) [:key1 key2])`
+- `gx/ref-keys` - is a shorthand for `(select-keys whole-config [:key1 key2])`
 ```clojure
 ;; config.edn file
 {:env {:db/uri "some db uri"
        :http/port 8080}
  :env-copy (gx/ref :env)
- :db/opts (gx/ref-keys :env [:db/uri]) ;; {:db/uri "some db uri"}
+ :db/opts (gx/ref-keys [:env]) ;; {:env {:db/uri "some db uri"
+                               ;;        :http/port 8080}}
  ;; use core function `get` to take a value of a specific key
  :http/opts {:port (get (gx/ref :env) :http/port)}}}) ;; 8080
 ```
