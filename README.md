@@ -10,7 +10,7 @@ Graph topologies, signal definitions and normalisation stategies are configurabl
 
 # Rationale
 
-TODO expand these:
+TODO expand these topics:
 - Data driven
 - REPL first approach
 - First class error handling/reporting
