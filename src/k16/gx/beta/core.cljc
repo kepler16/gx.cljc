@@ -12,7 +12,7 @@
 
 (def default-context
   {:initial-state :uninitialised
-   :normalize {;; signal, whish is default for static component nodes
+   :normalize {;; signal, whish is default for auto-component nodes
                :auto-signal :gx/start
                :props-signals #{:gx/start}}
    :signal-mapping {}
@@ -28,7 +28,7 @@
                          :deps-from :gx/start
                          :to-state :started}
 
-             :gx/stop {:from-states #{:started}
+             :gx/stop {:from-states #{:started :suspended}
                        :to-state :stopped
                        :deps-from :gx/start
                        :order :reverse}}})
