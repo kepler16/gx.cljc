@@ -363,6 +363,14 @@
         (flatten)
         (conj node-key))))
 
+(defn- create-partial-selector
+  [gx-map signal-key selector]
+  (some->>
+   (seq selector)
+   (map #(selector-with-deps gx-map signal-key %))
+   (flatten)
+   (set)))
+
 (defn signal
   "Send signal to the graph or to its subset if selectors are passed.
    Selectors is a set of top level graph keys, signal will be executed on
@@ -370,19 +378,15 @@
   ([gx-map signal-key]
    (signal gx-map signal-key nil))
   ([gx-map signal-key selector]
-   (let [gx-map (normalize (dissoc gx-map :failures))
-         partial-selector (some->> selector
-                                   (seq)
-                                   (map #(selector-with-deps gx-map signal-key %))
-                                   (flatten)
-                                   (set))
-         [error sorted] (topo-sort gx-map signal-key)
-         gx-map (if error
-                  (update gx-map :failures conj error)
-                  gx-map)]
-     (if (seq (:failures gx-map))
-       (p/resolved gx-map)
-       (p/loop [gxm gx-map
+   (let [normalized (normalize (dissoc gx-map :failures))
+         partial-selector (create-partial-selector gx-map signal-key selector)
+         [error sorted] (topo-sort normalized signal-key)
+         validated (if error
+                     (update normalized :failures conj error)
+                     normalized)]
+     (if (seq (:failures validated))
+       (p/resolved validated)
+       (p/loop [gxm validated
                 sorted sorted]
          (cond
            (seq sorted)
