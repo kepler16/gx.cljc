@@ -331,12 +331,13 @@
                   new-value (or (:gx/value result) result)]
             (if-let [e (or validate-error error)]
               (assoc node :gx/failure e)
-              (-> node
+              (-> (dissoc node :gx/failure)
                   (assoc :gx/value new-value)
                   (assoc :gx/instance (:gx/instance result))
                   (assoc :gx/state to-state)))))
 
-        :else (assoc node :gx/state to-state)))))
+        :else (-> (dissoc node :gx/failure)
+                  (assoc :gx/state to-state))))))
 
 (defn merge-node-failure
   [gx-map node]
