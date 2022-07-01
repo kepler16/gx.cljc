@@ -1,9 +1,11 @@
 (ns k16.gx.beta.system-test
-  (:require [clojure.test :refer [deftest is]]
-            [test-utils :refer [test-async]]
-            [k16.gx.beta.system :as gx.system]))
+  (:require #?(:cljs [cljs.core :refer [ExceptionInfo]])
+            [clojure.test :refer [deftest is]]
+            [k16.gx.beta.system :as gx.system]
+            [test-utils :refer [test-async]])
+  #?(:clj (:import [clojure.lang ExceptionInfo])))
 
-(def server
+(def ^:export server
   {:gx/start {:gx/processor (fn [_] {:server "instance"})}
    :gx/stop {:gx/processor (fn [_] nil)}})
 
@@ -29,26 +31,39 @@
             (gx.system/values ::clj-system [:http/options]))))))
 
 (deftest failed-system-test
-  (gx.system/register! ::clj-system-err {:graph {:a '(gx/ref :b)
-                                                 :b '(gx/ref :a)
-                                                 :c '(gx/ref :z)}})
-  (test-async
-   (gx.system/signal! ::clj-system-err :gx/start)
-   (fn [_ err]
-     (let [error #?(:clj (.getCause err) :cljs err)]
-       (is (= {:failures
-               (str "Dependency errors: signal = ':gx/start'"
-                    "\n\t• :c depends on :z, but :z doesn't exist"
-                    "\n\t• circular :a -> :b -> :a")}
-              (ex-data error)))))))
+  (try
+    (gx.system/register! ::clj-system-err {:graph {:a '(gx/ref :b)
+                                                   :b '(gx/ref :a)
+                                                   :c '(gx/ref :z)}})
+    (catch ExceptionInfo err
+      (is (= {:failures
+              [{:internal-data
+                {:errors
+                 [":c depends on :z, but :z doesn't exist"
+                  "circular :a -> :b -> :a"]},
+                :message "Dependency errors",
+                :error-type :deps-sort,
+                :signal-key :gx/start}
+               {:internal-data
+                {:errors
+                 [":c depends on :z, but :z doesn't exist"
+                  "circular :a -> :b -> :a"]},
+                :message "Dependency errors",
+                :error-type :deps-sort,
+                :signal-key :gx/suspend}
+               {:internal-data
+                {:errors
+                 [":c depends on :z, but :z doesn't exist"
+                  "circular :a -> :b -> :a"]},
+                :message "Dependency errors",
+                :error-type :deps-sort,
+                :signal-key :gx/resume}
+               {:internal-data
+                {:errors
+                 [":c depends on :z, but :z doesn't exist"
+                  "circular :a -> :b -> :a"]},
+                :message "Dependency errors",
+                :error-type :deps-sort,
+                :signal-key :gx/stop}]}
+             (ex-data err))))))
 
-
-(comment
- @(gx.system/signal! ::clj-system-err :gx/start)
- (fn [_ err]
-   (let [error #?(:clj (.getCause err) :cljs err)]
-     (is (= {:failures
-             (list (str "Dependency errors: signal = ':gx/start'"
-                        "\n\t• :c depends on :z, but :z doesn't exist"
-                        "\n\t• circular :a -> :b -> :a"))}
-            (ex-data error))))))

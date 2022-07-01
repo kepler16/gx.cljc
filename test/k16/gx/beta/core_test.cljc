@@ -379,7 +379,8 @@
         (fn [gx-map]
           (is (= {:internal-data
                   {:ex-message "Invalid arity: 0",
-                   :args {:props {}, :value nil, :instance nil}},
+                   :args {:props {}, :value nil,
+                          :instance nil,  :state :uninitialised}},
                   :message "Signal processor error",
                   :error-type :node-signal, :node-key :a,
                   :node-contents '(get),
@@ -548,7 +549,12 @@
                                      :deps-from :gx/start}}}]
     (testing "should check for circular deps-from"
       (is (= "circular :gx/start -> :gx/stop -> :gx/start"
-             (first (gx/validate-context context)))))))
+             (-> (gx/with-context-failures {:context context})
+                 :failures
+                 (first)
+                 :internal-data
+                 :errors
+                 first))))))
 
 (deftest unserolvable-symbol-test
   (let [graph {:a 'foo.bar/baz}
