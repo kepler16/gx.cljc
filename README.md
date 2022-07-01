@@ -268,9 +268,6 @@ Here is an example of counter component which runs as a background process, it h
 ## Build
 VERSION=2.0.0-SNAPSHOT just build
 
-## Release
-VERSION=2.0.0-SNAPSHOT just release
-
 ## To run clj tests
 
 ```bash
