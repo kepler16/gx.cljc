@@ -106,10 +106,7 @@
 
             signal-defs (select-keys normalized-def signals)
             normalised-signal-defs
-            (->> signal-defs
-                 (map (fn [[signal-key signal-def]]
-                        [signal-key (normalize-signal-def signal-def)]))
-                 (into {}))]
+            (update-vals signal-defs normalize-signal-def)]
         (merge normalized-def
                normalised-signal-defs
                ;; Useful information, but lets consider semantics before
@@ -160,13 +157,7 @@
         (update gx-map' :failures conj (gx.err/ex->gx-err-data e))))))
 
 (defn graph-dependencies [graph signal-key]
-  (->> graph
-       (map (fn [[k node]]
-              (let [deps (-> node
-                             signal-key
-                             :gx/deps)]
-                [k (into #{} deps)])))
-       (into {})))
+  (update-vals graph (fn [node] (->> node signal-key :gx/deps set))))
 
 (defn topo-sort
   "Sorts graph nodes according to signal ordering, returns vector of
@@ -196,10 +187,7 @@
 
 (defn get-component-props
   [graph property-key]
-  (->> graph
-       (map (fn [[k node]]
-              [k (get node property-key)]))
-       (into {})))
+  (update-vals graph property-key))
 
 (defn failures [gx-map]
   (get-component-props (:graph gx-map) :gx/failure))
@@ -348,8 +336,7 @@
         order (:order signal)
         signal-key' (or deps-from signal-key)
         signal-deps (-> graph node-key signal-key' :gx/deps set)
-        dep-nodes (->> graph
-                       (map (fn [[k n]] [k (signal-key' n)]))
+        dep-nodes (->> (update-vals graph signal-key')
                        (filter (fn [[k {:gx/keys [deps]}]]
                                  (if (= :reverse order)
                                    (contains? (set deps) node-key)
