@@ -123,38 +123,25 @@
                    #{})]))
        (into {})))
 
-(defn validate-context
+(defn with-context-failures
   "Validates context against schema and checks signal dependency errors"
-  [context]
-  (or (gx.schema/validate-context context)
-      (let [deps (signal-dependencies context)]
-        (->> deps
-             (impl/sccs)
-             (impl/dependency-errors deps)
-             (map impl/human-render-dependency-error)
-             (seq)))))
-
-(defn normalize
-  "Given a graph definition and config, return a normalised form. Idempotent.
-   This acts as the static analysis step of the graph.
-   Returns tuple of error explanation (if any) and normamized graph."
-  [{:keys [context graph] :or {context default-context} :as gx-map}]
-  (let [config-issues (validate-context context)
-        gx-map (assoc gx-map :context context)
-        ;; remove previous normalization errors
-        gx-map' (cond-> gx-map
-                  (not (:initial-graph gx-map)) (assoc :initial-graph graph)
-                  :always (dissoc :failures))]
-    (try
-      (cond
-        config-issues (throw (ex-info "GX Context error" config-issues))
-        :else (->> graph
-                   (map (fn [[k v]]
-                          [k (normalize-node-def gx-map' k v)]))
-                   (into {})
-                   (assoc gx-map' :graph)))
-      (catch ExceptionInfo e
-        (update gx-map' :failures conj (gx.err/ex->gx-err-data e))))))
+  [{:keys [context] :as gx-map}]
+  (with-err-ctx {:error-type :context}
+    (let [schema-errors (gx.schema/validate-context context)
+          signal-deps-errors (let [deps (signal-dependencies context)]
+                               (->> deps
+                                    (impl/sccs)
+                                    (impl/dependency-errors deps)
+                                    (map impl/human-render-dependency-error)
+                                    (seq)))
+          all-errors (->> (apply vector schema-errors signal-deps-errors)
+                          (filter identity)
+                          (seq))]
+      (if all-errors
+        (update gx-map :failures conj (gx.err/gx-err-data
+                                       "GX Context failure"
+                                       {:errors all-errors}))
+        gx-map))))
 
 (defn graph-dependencies [graph signal-key]
   (update-vals graph (fn [node] (->> node signal-key :gx/deps set))))
@@ -184,6 +171,36 @@
          (str "Unknown signal key '" signal-key "'")))
       (catch ExceptionInfo e
         [(assoc (ex-data e) :message (ex-message e))]))))
+
+(defn with-deps-failures
+  [gx-map]
+  (if-let [failures (->> (-> gx-map :context :signals keys)
+                         (map #(topo-sort gx-map %))
+                         (filter first)
+                         (flatten)
+                         (seq))]
+    (update gx-map :failures concat failures)
+    gx-map))
+
+(defn normalize
+  "Given a graph definition and config, return a normalised form. Idempotent.
+   This acts as the static analysis step of the graph.
+   Returns tuple of error explanation (if any) and normamized graph."
+  [{:keys [context graph initial-graph]
+    :or {context default-context} :as gx-map}]
+  (let [gx-map' (cond-> gx-map
+                  (not initial-graph) (assoc :initial-graph graph)
+                  :always (assoc :context context)
+                  :always (dissoc :failures))]
+    (try
+      (->> graph
+           (map (fn [[k v]] [k (normalize-node-def gx-map' k v)]))
+           (into {})
+           (assoc gx-map' :graph)
+           (with-deps-failures)
+           (with-context-failures))
+      (catch ExceptionInfo e
+        (update gx-map' :failures conj (gx.err/ex->gx-err-data e))))))
 
 (defn get-component-props
   [graph property-key]

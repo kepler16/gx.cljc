@@ -71,6 +71,18 @@
   [error]
   (humanize-error error))
 
+(defmethod humanize :context
+  [{:keys [internal-data] :as error}]
+  (apply humanize-error error (:errors internal-data)))
+
+(comment
+  (println
+   (humanize-all [{:internal-data
+                   {:errors
+                    (list {:foo ["disallowed key"]} "circular :gx/start -> :gx/stop -> :gx/start")},
+                   :message "GX Context failure",
+                   :error-type :context}])))
+
 (defmethod humanize :normalize-node
   [{:keys [internal-data] :as error}]
   (humanize-error error (tokenize
@@ -91,8 +103,6 @@
 (defmethod humanize :deps-sort
   [{:keys [internal-data] :as error}]
   (apply humanize-error error (:errors internal-data)))
-
-(apply + 1 [1 2])
 
 (comment
   (println
