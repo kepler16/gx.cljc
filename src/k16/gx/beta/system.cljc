@@ -63,12 +63,17 @@
 
 (defn signal!
   "Sends signal to a system and updates it in registry.
-   Accepts system name and a signal key.
-   Returns a new system on success or throws exception on signal failure."
+
+   - Accepts system name and a signal key.
+   - Returns a promise with a new system on success.
+   - Returns a resolved promise with nil if system does not exist.
+   - Clojure: rejects with `clojure.lang.ExceptionInfo` wrapped in
+     `java.util.concurrent.ExecutionException` on signal failure.
+   - ClojureScript: rejects with `cljs.core.ExceptionInfo` on signal failure."
   ([system-name signal-key]
    (signal! system-name signal-key nil))
   ([system-name signal-key selector]
-   (when-let [gx-map (get @registry* system-name)]
+   (if-let [gx-map (get @registry* system-name)]
      (-> (gx/signal gx-map signal-key selector)
          (p/then (fn [g]
                    (swap! registry* assoc system-name g)
@@ -76,15 +81,23 @@
                      (throw (ex-info (str "Signal failed!\n"
                                           (gx.errors/humanize-all failures))
                                      {:failures failures}))
-                     g)))))))
+                     g))))
+     (p/resolved nil))))
 
 (comment
-  (register! :sys {:graph {:a '(gx/ref :b)
-                           :b '(gx/ref :a)
-                           :c '(gx/ref :z)
-                           :z {:gx/component 'non.existend/component}}})
+  (try
+    (register! :sys {:graph {:a '(gx/ref :b)
+                             :b '(gx/ref :a)
+                             :c '(gx/ref :z)
+                             :z {:gx/component 'non.existend/component}}})
+    (catch Exception e
+      (println (ex-message (or (ex-cause e) e)))))
   ;; clj
-  @(signal! :sys :gx/start)
+  (try
+    @(signal! :sys :gx/start)
+    (catch Exception e
+      (println (type e))
+      (println (ex-message (or (ex-cause e) e)))))
 
   ;; cljs
   (-> (signal! :sys :gx/start)
