@@ -194,7 +194,9 @@
                   :always (dissoc :failures))]
     (try
       (->> graph
-           (map (fn [[k v]] [k (normalize-node-def gx-map' k v)]))
+           (map (fn [[k v]] [k (-> (normalize-node-def gx-map' k v)
+                                   ;; cleanup previous failures
+                                   (dissoc :gx/failure))]))
            (into {})
            (assoc gx-map' :graph)
            (with-deps-failures)
@@ -276,7 +278,7 @@
   [{:keys [context graph initial-graph]} node-key signal-key]
   (let [signal-config (-> context :signals signal-key)
         {:keys [deps-from from-states to-state]} signal-config
-        node (get graph node-key)
+        node (-> (get graph node-key) (dissoc :gx/failure))
         node-state (:gx/state node)
         signal-def (get node signal-key)
         {:gx/keys [processor props-schema resolved-props]} signal-def
@@ -331,13 +333,11 @@
                   new-value (or (:gx/value result) result)]
             (if-let [e (or validate-error error)]
               (assoc node :gx/failure e)
-              (-> (dissoc node :gx/failure)
-                  (assoc :gx/value new-value)
-                  (assoc :gx/instance (:gx/instance result))
-                  (assoc :gx/state to-state)))))
+              (merge node {:gx/value new-value
+                           :gx/instance (:gx/instance result)
+                           :gx/state to-state}))))
 
-        :else (-> (dissoc node :gx/failure)
-                  (assoc :gx/state to-state))))))
+        :else (assoc node :gx/state to-state)))))
 
 (defn merge-node-failure
   [gx-map node]
