@@ -267,7 +267,7 @@
              gx-norm (gx/normalize {:graph graph
                                     :context gx/default-context})
              expect (list {:internal-data
-                           {:ex-message "java.lang.ArithmeticException: Divide by zero; Divide by zero",
+                           {:ex-message "Divide by zero",
                             :args {:props {:z 1}, :value nil, :state :uninitialised, :instance nil}},
                            :message "Signal processor error",
                            :error-type :node-signal,
@@ -277,14 +277,8 @@
                            :signal-key :gx/start}
                           {:internal-data
                            {:ex-message
-                            (str "java.lang.ClassCastException: class "
-                                 "clojure.lang.Keyword cannot be cast "
-                                 "to class java.lang.Number (clojure."
-                                 "lang.Keyword is in unnamed module of "
-                                 "loader 'app'; java.lang.Number is in "
-                                 "module java.base of loader 'bootstrap'); "
-                                 "class clojure.lang.Keyword cannot be cast "
-                                 "to class java.lang.Number (clojure.lang."
+                            (str "class clojure.lang.Keyword cannot be cast"
+                                 " to class java.lang.Number (clojure.lang."
                                  "Keyword is in unnamed module of loader "
                                  "'app'; java.lang.Number is in module "
                                  "java.base of loader 'bootstrap')"),
@@ -358,7 +352,7 @@
                          :node-contents '(gx/ref :b),
                          :signal-key :gx/start}
                         {:internal-data
-                         {:ex-message "java.lang.ArithmeticException: Divide by zero; Divide by zero",
+                         {:ex-message "Divide by zero",
                           :args {:props {:a 1}, :state :uninitialised, :value nil, :instance nil}},
                          :message "Signal processor error",
                          :error-type :node-signal,

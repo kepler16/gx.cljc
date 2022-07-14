@@ -239,7 +239,7 @@
   [e arg-map]
   (gx.err/gx-err-data "Signal processor error"
                       {:ex-message (impl/error-message e)
-                       :ex (or (ex-data e) e)
+                       :ex e
                        :args arg-map}))
 
 #?(:cljs
@@ -254,7 +254,7 @@
      (try
        [nil @(p/do (processor arg-map))]
        (catch Throwable e
-         [(wrap-error e arg-map) nil]))))
+         [(wrap-error (or (ex-cause e) e) arg-map) nil]))))
 
 #?(:cljs
    (defn- run-processor

@@ -34,12 +34,12 @@
                      :my-component
                      :internal-data
                      :ex
-                     (ex-cause)
                      (ex-data))
             :cljs (-> (gx/failures s)
                       :my-component
                       :internal-data
-                      :ex)))))
+                      :ex
+                      (ex-data))))))
 
 #_{:clj-kondo/ignore [:clojure-lsp/unused-public-var]}
 (deftest async-rejected-component-test
