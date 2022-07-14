@@ -1,4 +1,64 @@
-# [](https://github.com/kepler16/gx.cljc/compare/v2.5.1...v) (2022-06-25)
+# [](https://github.com/kepler16/gx.cljc/compare/v2.7.3...v) (2022-07-14)
+
+
+
+## [2.7.3](https://github.com/kepler16/gx.cljc/compare/v2.7.2...v2.7.3) (2022-07-14)
+
+
+### Bug Fixes
+
+* clj/cljs error wrap consistency ([e037b33](https://github.com/kepler16/gx.cljc/commit/e037b339bef57ff886682bca5964f423fa1dc703))
+
+
+
+## [2.7.2](https://github.com/kepler16/gx.cljc/compare/v2.7.1...v2.7.2) (2022-07-04)
+
+
+### Bug Fixes
+
+* in some cases, old failure is not cleaned up ([a85f453](https://github.com/kepler16/gx.cljc/commit/a85f453b9997d5cba83ac6b18ed3fb26c5af239a))
+* signal! resolve to nil on wrong system-name ([3b363e1](https://github.com/kepler16/gx.cljc/commit/3b363e1b7021627a08fc3c035577eebb7aa52198))
+
+
+
+## [2.7.1](https://github.com/kepler16/gx.cljc/compare/v2.7.0...v2.7.1) (2022-07-01)
+
+
+### Bug Fixes
+
+* failure is not cleaned from the previous signal ([15063f1](https://github.com/kepler16/gx.cljc/commit/15063f1341402ab6cf8a29eef999dfd10b9d62bb))
+
+
+
+# [2.7.0](https://github.com/kepler16/gx.cljc/compare/v2.6.0...v2.7.0) (2022-07-01)
+
+
+### Bug Fixes
+
+* context signal ([4adef60](https://github.com/kepler16/gx.cljc/commit/4adef606e9b0df90bfd7686ba1a1c1a180ae52a6))
+
+
+### Features
+
+* graph deps is statically analyzed ([e8aa274](https://github.com/kepler16/gx.cljc/commit/e8aa274266031d4c97d7408695ab7c0c5465a781))
+
+
+
+# [2.6.0](https://github.com/kepler16/gx.cljc/compare/v2.5.2...v2.6.0) (2022-06-30)
+
+
+### Features
+
+* (TRE-421) error propagation ([2ebee31](https://github.com/kepler16/gx.cljc/commit/2ebee3139df027238a6eda632f5923f039f52122))
+
+
+
+## [2.5.2](https://github.com/kepler16/gx.cljc/compare/v2.5.1...v2.5.2) (2022-06-30)
+
+
+### Bug Fixes
+
+* pass node's state to processor ([a7fcc1e](https://github.com/kepler16/gx.cljc/commit/a7fcc1e087588347c3c6356c35bb51749768b432))
 
 
 
