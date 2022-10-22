@@ -3,8 +3,8 @@
              {:url "https://maven.pkg.github.com/kepler16/gx.cljc"}}
 
  :deps
- {funcool/promesa {:mvn/version "8.0.450"}
-  metosin/malli {:mvn/version "0.8.8"}}
+ {funcool/promesa {:mvn/version "8.0.489"}
+  metosin/malli {:mvn/version "0.9.2"}}
 
  :aliases
  {:dev {:extra-paths ["test"]
