@@ -581,3 +581,26 @@
        (is (= {:my-comp :stopped-val} (gx/values stopped)))
        (is (= :some-instance (-> started :graph :my-comp :gx/instance)))
        (is (= nil (-> stopped :graph :my-comp :gx/instance)))))))
+
+(def ^:export empty-map-props-component
+  {:gx/start {:gx/processor (fn [{:keys [props]}]
+                              {:gx/value props
+                               :gx/instance :some-instance})
+              :gx/props-schema [:map]}
+   :gx/stop {:gx/processor (fn [{:keys [instance]}]
+                             (when-not (= :some-instance instance)
+                               (throw (ex-info "wrong instance" instance)))
+                             :stopped-val)}})
+
+(deftest empty-map-props-test
+  (let [graph {:my-comp {:gx/component 'k16.gx.beta.core-test/empty-map-props-component
+                         :gx/props {}}}]
+    (test-async
+     (p/let [started (gx/signal {:graph graph} :gx/start)
+             stopped (gx/signal started :gx/stop)]
+       [started stopped])
+     (fn [[started stopped]]
+       (is (= {:my-comp nil} (gx/failures started)))
+       (is (= {:my-comp {}} (gx/values started)))
+       (is (= {} (-> stopped :graph :my-comp :gx/props)))))))
+
