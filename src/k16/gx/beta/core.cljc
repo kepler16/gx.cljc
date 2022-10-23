@@ -417,41 +417,4 @@
   (def norm (normalize {:graph graph}))
 
   (selector-with-deps norm :gx/stop :server)
-
-  (def started @(signal {:graph graph} :gx/start))
-
-
-  (= (system-state started)
-     {:options :started,
-      :router :started,
-      :handler :started,
-      :server :started,
-      :config-logger :started,
-      :logger :started})
-
-  (def partial-stop @(signal started :gx/stop #{:handler}))
-  (= (system-state partial-stop)
-     {:options :started,
-      :router :started,
-      :handler :stopped,
-      :server :stopped,
-      :config-logger :started,
-      :logger :started})
-
-  (def partial-start @(signal partial-stop :gx/start #{:handler}))
-  (= (system-state partial-start)
-     {:options :started,
-      :router :started,
-      :handler :started,
-      :server :stopped,
-      :config-logger :started,
-      :logger :started})
-
-  (def full-start @(signal partial-start :gx/start #{:server}))
-  (= (system-state full-start)
-     {:options :started,
-      :router :started,
-      :handler :started,
-      :server :started,
-      :config-logger :started,
-      :logger :started}))
+  )
