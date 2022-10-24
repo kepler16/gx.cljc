@@ -142,23 +142,6 @@
   [& maps]
   (reduce merger maps))
 
-(defn error-message
-  [ex]
-  #?(:clj (->> ex
-               (iterate ex-cause)
-               (take-while some?)
-               (mapv ex-message)
-               (interpose "; ")
-               (apply str))
-     :cljs (cond
-             (instance? cljs.core/ExceptionInfo ex)
-             (ex-message ex)
-
-             (instance? js/Error ex)
-             (ex-message ex)
-
-             :else ex)))
-
 (def locals #{'gx/ref 'gx/ref-keys})
 
 (defn local-form?
@@ -192,21 +175,23 @@
        :else x))
    form))
 
-#?(:clj
-   (defn quiet-requiring-resolve
-     [sym]
-     (try
-       (requiring-resolve sym)
-       (catch Throwable _ nil))))
-
 (defn resolve-symbol
   [sym]
   (when (symbol? sym)
-    #?(:cljs (namespace-symbol sym)
-       :clj (some-> sym
-                    (namespace-symbol)
-                    (quiet-requiring-resolve)
-                    (var-get)))))
+    (if-let [nss #?(:cljs (namespace-symbol sym)
+                    :clj (try
+                           (some-> sym
+                                   (namespace-symbol)
+                                   (requiring-resolve)
+                                   (var-get))
+                           (catch Throwable e
+                             (gx.err/add-err-cause
+                              {:title :symbol-cannot-be-resolved
+                               :data sym
+                               :exception e}))))]
+      nss
+      (gx.err/add-err-cause {:title :symbol-cannot-be-resolved
+                             :data sym}))))
 
 (defn form->runnable [form-def]
   (let [props* (atom #{})

@@ -232,13 +232,13 @@
     (props-fn arg-map)
     (catch #?(:clj Throwable :cljs :default) e
       (gx.err/throw-gx-err "Props function error"
-                           {:ex-message (impl/error-message e)
+                           {:ex-message (gx.err/gather-error-messages e)
                             :args arg-map}))))
 
 (defn- wrap-error
   [e arg-map]
   (gx.err/gx-err-data "Signal processor error"
-                      {:ex-message (impl/error-message e)
+                      {:ex-message (gx.err/gather-error-messages e)
                        :ex e
                        :args arg-map}))
 

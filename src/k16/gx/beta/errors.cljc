@@ -6,6 +6,23 @@
   "Error context is used for creating/throwing exceptions with contextual data"
   (map->ErrorContext {:error-type :general}))
 
+(defn gather-error-messages
+  [ex]
+  #?(:clj (->> ex
+               (iterate ex-cause)
+               (take-while some?)
+               (mapv ex-message)
+               (interpose "; ")
+               (apply str))
+     :cljs (cond
+             (instance? cljs.core/ExceptionInfo ex)
+             (ex-message ex)
+
+             (instance? js/Error ex)
+             (ex-message ex)
+
+             :else ex)))
+
 (defn gx-err-data
   ([internal-data]
    (gx-err-data nil internal-data))
