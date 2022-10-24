@@ -1,4 +1,18 @@
-# [](https://github.com/kepler16/gx.cljc/compare/v2.7.5...v) (2022-10-24)
+# [](https://github.com/kepler16/gx.cljc/compare/v2.7.6...v) (2022-10-24)
+
+
+### Features
+
+* **TRE-856:** add error causes ([40d90c2](https://github.com/kepler16/gx.cljc/commit/40d90c2c44bb1a447869a8e2da29ca9518a66c0c))
+
+
+
+## [2.7.6](https://github.com/kepler16/gx.cljc/compare/v2.7.5...v2.7.6) (2022-10-24)
+
+
+### Bug Fixes
+
+* changelog ([2e1f8f1](https://github.com/kepler16/gx.cljc/commit/2e1f8f1e89bdca6c6c27e5f04dc2d71f12113468))
 
 
 
