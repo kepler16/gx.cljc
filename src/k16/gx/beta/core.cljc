@@ -405,6 +405,7 @@
 
            :else gxm))))))
 
+#_{:clj-kondo/ignore [:unresolved-symbol]}
 (comment
   (def graph {:options {:port 8080}
               :router {:some "router"}
