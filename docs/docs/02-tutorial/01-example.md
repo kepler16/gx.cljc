@@ -90,7 +90,7 @@ Alright, let's write app code:
 
 (def http-server
   {:gx/start
-   {;; incoming props will be validated against malli chema
+   {;; incoming props will be validated against malli schema
     ;; during signal application
     :gx/props-schema [:map
                       [:handler fn?]

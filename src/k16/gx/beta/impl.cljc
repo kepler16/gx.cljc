@@ -129,7 +129,7 @@
     #?(:clj (symbol "clojure.core" (name sym))
        :cljs ((ns-publics 'cljs.core) sym))))
 
-(def mergable? (every-pred #(and (map? %) (not (record? %)))))
+(def mergable? (every-pred map? (complement record?)))
 
 (defn merger
   [left right]

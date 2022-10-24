@@ -24,7 +24,7 @@
 
 (def http-server
   {:gx/start
-   {;; incoming props will be validated against malli chema
+   {;; incoming props will be validated against malli schema
     ;; during signal
     :gx/props-schema [:map
                       [:handler fn?]
