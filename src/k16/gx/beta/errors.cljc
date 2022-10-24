@@ -1,10 +1,35 @@
 (ns k16.gx.beta.errors)
 
-(defrecord ErrorContext [error-type node-key node-contents signal-key])
+(defrecord ErrorContext [error-type node-key
+                         node-contents signal-key
+                         causes])
 
 (def ^:dynamic *err-ctx*
   "Error context is used for creating/throwing exceptions with contextual data"
-  (map->ErrorContext {:error-type :general}))
+  (map->ErrorContext {:error-type :general :causes []}))
+
+(defn gather-error-messages
+  [ex]
+  #?(:clj (->> ex
+               (iterate ex-cause)
+               (take-while some?)
+               (mapv ex-message)
+               (interpose "; ")
+               (apply str))
+     :cljs (cond
+             (instance? cljs.core/ExceptionInfo ex)
+             (ex-message ex)
+
+             (instance? js/Error ex)
+             (ex-message ex)
+
+             :else ex)))
+
+(defn add-err-cause
+  "Adds cause to error context, evaluates to nil"
+  [cause]
+  (set! *err-ctx* (update *err-ctx* :causes conj cause))
+  nil)
 
 (defn gx-err-data
   ([internal-data]
@@ -48,14 +73,21 @@
        (flatten)
        (apply str)))
 
+(defn- cause->str
+  [{:keys [title data exception]}]
+  (str "cause(" title " = " data "): " (gather-error-messages exception)))
+
 (defn humanize-error
-  [{:keys [node-key signal-key message]} & rest-of-error]
+  [{:keys [node-key signal-key message causes]} & rest-of-error]
   (let [rest-of-error (filter seq rest-of-error)]
     (apply str (concat [(or message "Error") ": "
                         (tokenize "node = " node-key
                                   "signal = " signal-key)]
                        (when (seq rest-of-error)
                          (conj (interpose "\n\t• " rest-of-error)
+                               "\n\t• "))
+                       (when (seq causes)
+                         (conj (interpose "\n\t• " (map cause->str causes))
                                "\n\t• "))))))
 
 (defmulti humanize :error-type)

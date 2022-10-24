@@ -118,7 +118,8 @@
             :node-contents '(throw (ex-info "foo" (gx/ref :a))),
             :message "Special forms are not supported",
             :internal-data
-            {:form-def '(throw (ex-info "foo" (gx/ref :a))), :token 'throw}}
+            {:form-def '(throw (ex-info "foo" (gx/ref :a))), :token 'throw}
+            :causes []}
            failure))))
 
 (deftest component-support-test
@@ -170,7 +171,8 @@
                        "circular :a -> :b -> :a")},
             :message "Dependency errors",
             :error-type :deps-sort,
-            :signal-key :gx/start}
+            :signal-key :gx/start
+            :causes []}
            failure))))
 
 (defn my-props-fn
@@ -236,7 +238,7 @@
               :node-contents '(throw "starting"),
               :message "Special forms are not supported",
               :internal-data {:form-def '(throw "starting"), :token 'throw}}
-             (-> gx-norm :failures first)))))
+             (-> gx-norm :failures first (dissoc :causes))))))
 
   (testing "unresolved symbol failure"
     (let [graph {:a {:nested-a 1}
@@ -255,7 +257,7 @@
               :internal-data
               {:form-def '(some-not-found-symbol "stopping"),
                :token 'some-not-found-symbol}}
-             failure))))
+             (dissoc failure :causes)))))
   #?(:clj
      (testing "processor failure"
        (let [graph {:a {:nested-a 1}
@@ -274,7 +276,8 @@
                            :node-key :b,
                            :node-contents #:gx{:start '(/ (gx/ref :z) 0),
                                                :stop '(println "stopping")},
-                           :signal-key :gx/start}
+                           :signal-key :gx/start
+                           :causes []}
                           {:internal-data
                            {:ex-message
                             (str "class clojure.lang.Keyword cannot be cast"
@@ -287,7 +290,8 @@
                            :error-type :node-signal,
                            :node-key :c,
                            :node-contents '(inc :bar),
-                           :signal-key :gx/start})
+                           :signal-key :gx/start
+                           :causes []})
              p-gx-started (gx/signal gx-norm :gx/start)]
          (is (= expect
                 (->> @p-gx-started
@@ -318,7 +322,8 @@
                :node-contents
                #:gx{:component 'k16.gx.beta.core-test/props-validation-component,
                     :start #:gx{:props-fn 'k16.gx.beta.core-test/my-props-fn}},
-               :signal-key :gx/start}
+               :signal-key :gx/start
+               :causes []}
               (first (:failures gx-started))))))))
 
 (comment
@@ -344,13 +349,15 @@
                          :error-type :node-signal,
                          :node-key :d,
                          :node-contents '(gx/ref :c),
-                         :signal-key :gx/start}
+                         :signal-key :gx/start
+                         :causes []}
                         {:internal-data {:dep-node-keys '(:b)},
                          :message "Failure in dependencies",
                          :error-type :node-signal,
                          :node-key :c,
                          :node-contents '(gx/ref :b),
-                         :signal-key :gx/start}
+                         :signal-key :gx/start
+                         :causes []}
                         {:internal-data
                          {:ex-message "Divide by zero",
                           :args {:props {:a 1}, :state :uninitialised, :value nil, :instance nil}},
@@ -358,7 +365,8 @@
                          :error-type :node-signal,
                          :node-key :b,
                          :node-contents '(/ (gx/ref :a) 0),
-                         :signal-key :gx/start})
+                         :signal-key :gx/start
+                         :causes []})
            p-gx-started (gx/signal gx-map :gx/start)
            failures (-> (:failures @p-gx-started)
                         (vec)
@@ -381,7 +389,8 @@
                   :signal-key :gx/start}
                  (-> (:failures gx-map)
                      (first)
-                     (update :internal-data dissoc :ex)))))))))
+                     (update :internal-data dissoc :ex)
+                     (dissoc :causes)))))))))
 
 (def ^:export push-down-props-component
   {:gx/props '(gx/ref-keys [:a])
@@ -420,7 +429,9 @@
               :node-contents
               #:gx{:component 'k16.gx.beta.core-test/non-existent}
               :internal-data
-              {:component 'k16.gx.beta.core-test/non-existent}}
+              {:component 'k16.gx.beta.core-test/non-existent}
+              :causes [{:title :symbol-cannot-be-resolved 
+                        :data 'k16.gx.beta.core-test/non-existent}]}
              (first (:failures gx-map)))))
 
     (let [graph {:c {:gx/component 'k16.gx.beta.core-test/invalid-component}}
@@ -433,7 +444,8 @@
               #:gx{:component 'k16.gx.beta.core-test/invalid-component}
               :internal-data
               {:component {:some "invalid component"}
-               :schema-error #{[:some ["disallowed key"]]}}}
+               :schema-error #{[:some ["disallowed key"]]}}
+              :causes []}
              (-> gx-map
                  :failures
                  first
@@ -451,7 +463,8 @@
               {:component #:gx{:start #:gx{:processor "non callable val"}}
                :schema-error
                #{[:gx/start
-                  #:gx{:processor ["should be an ifn"]}]}}}
+                  #:gx{:processor ["should be an ifn"]}]}}
+              :causes []}
              (-> gx-map
                  :failures
                  first
@@ -552,13 +565,18 @@
 
 (deftest unserolvable-symbol-test
   (let [graph {:a 'foo.bar/baz}
-        norm (gx/normalize {:graph graph})]
+        norm (gx/normalize {:graph graph})
+        failure (first (:failures norm))
+        cause (first (:causes failure))]
+    #?(:clj
+        (is (instance? java.io.FileNotFoundException (:exception cause))))
+    (is (= :symbol-cannot-be-resolved (:title cause)))
     (is (= {:message "Unable to resolve symbol",
             :error-type :normalize-node,
             :node-key :a,
             :node-contents 'foo.bar/baz,
             :internal-data {:form-def 'foo.bar/baz, :token 'foo.bar/baz}}
-           (first (:failures norm))))))
+           (dissoc failure :causes)))))
 
 (def ^:export proc-instance-component
   {:gx/start {:gx/processor (fn [{:keys [props]}]
