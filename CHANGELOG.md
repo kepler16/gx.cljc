@@ -1,4 +1,23 @@
-# [](https://github.com/kepler16/gx.cljc/compare/v2.7.3...v) (2022-07-14)
+# [](https://github.com/kepler16/gx.cljc/compare/v2.7.5...v) (2022-10-24)
+
+
+
+## [2.7.5](https://github.com/kepler16/gx.cljc/compare/v2.7.4...v2.7.5) (2022-10-24)
+
+
+### Bug Fixes
+
+* **TRE-869:** better props emptiness check ([#19](https://github.com/kepler16/gx.cljc/issues/19)) ([3e5dd5d](https://github.com/kepler16/gx.cljc/commit/3e5dd5d9cd6fecd00f98434c3581864af547816c))
+
+
+
+## [2.7.4](https://github.com/kepler16/gx.cljc/compare/v2.7.3...v2.7.4) (2022-10-22)
+
+
+### Bug Fixes
+
+* bump versions ([5850b2d](https://github.com/kepler16/gx.cljc/commit/5850b2d780747e78c282da55bf96d2fc1bf895f6))
+* promesa version ([82754c7](https://github.com/kepler16/gx.cljc/commit/82754c7ad552b0d09aa9bd74b17048545fc61c42))
 
 
 
