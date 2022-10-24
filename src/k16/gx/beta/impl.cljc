@@ -239,7 +239,7 @@
 
 (defn push-down-props
   [{{:keys [props-signals]} :normalize} {:gx/keys [props] :as node-def}]
-  (if (and (seq props) (seq props-signals))
+  (if (and props (seq props-signals))
     (reduce-kv (fn [m k v]
                  (if (and (contains? props-signals k)
                           (not (:gx/props v)))
