@@ -19,7 +19,7 @@ build: clean
     mkdir -p {{assets_dir}}
     cp target/*.jar {{assets_dir}}
 
-release: clean
+release:
     clojure -T:build org.corfield.build/deploy :repository \"{{maven_server}}\" :lib {{library}} :version \"{{version}}\"
 
 repl *ARGS:
