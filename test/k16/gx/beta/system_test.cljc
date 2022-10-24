@@ -43,27 +43,31 @@
                   "circular :a -> :b -> :a"]},
                 :message "Dependency errors",
                 :error-type :deps-sort,
-                :signal-key :gx/start}
+                :signal-key :gx/start
+                :causes []}
                {:internal-data
                 {:errors
                  [":c depends on :z, but :z doesn't exist"
                   "circular :a -> :b -> :a"]},
                 :message "Dependency errors",
                 :error-type :deps-sort,
-                :signal-key :gx/suspend}
+                :signal-key :gx/suspend
+                :causes []}
                {:internal-data
                 {:errors
                  [":c depends on :z, but :z doesn't exist"
                   "circular :a -> :b -> :a"]},
                 :message "Dependency errors",
                 :error-type :deps-sort,
-                :signal-key :gx/resume}
+                :signal-key :gx/resume
+                :causes []}
                {:internal-data
                 {:errors
                  [":c depends on :z, but :z doesn't exist"
                   "circular :a -> :b -> :a"]},
                 :message "Dependency errors",
                 :error-type :deps-sort,
-                :signal-key :gx/stop}]}
+                :signal-key :gx/stop
+                :causes []}]}
              (ex-data err))))))
 
