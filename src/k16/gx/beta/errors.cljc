@@ -35,10 +35,13 @@
   ([internal-data]
    (gx-err-data nil internal-data))
   ([message internal-data]
-   (->> *err-ctx*
-        (filter (fn [[_ v]] v))
-        (into (if message {:message message} {}))
-        (merge {:internal-data internal-data}))))
+   (gx-err-data message internal-data nil))
+  ([message internal-data cause]
+   (cond-> {}
+     :always (into (filter (fn [[_ v]] v) *err-ctx*))
+     message (assoc :message message)
+     internal-data (assoc :internal-data internal-data)
+     cause (update :causes conj cause))))
 
 (defn throw-gx-err
   ([message]

@@ -32,13 +32,13 @@
   (is (= {:foo :bar}
          #?(:clj (-> (gx/failures s)
                      :my-component
-                     :internal-data
-                     :ex
+                     :causes 
+                     first
                      (ex-data))
             :cljs (-> (gx/failures s)
                       :my-component
-                      :internal-data
-                      :ex
+                      :causes
+                      first
                       (ex-data))))))
 
 #_{:clj-kondo/ignore [:clojure-lsp/unused-public-var]}

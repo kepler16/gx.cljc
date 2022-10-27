@@ -38,8 +38,7 @@
   (let [graph (load-config)
         gx-map (gx/normalize {:context context
                               :graph graph})]
-    (gx.schema/validate-graph gx-map))
-  )
+    (gx.schema/validate-graph gx-map)))
 
 (deftest graph-tests
   (let [graph (load-config)
@@ -205,7 +204,7 @@
       '(gx/ref :http/server) {:port 8080}
 
       '(gx/ref-keys [:http/server :db/url]) {:http/server {:port 8080}
-                                            :db/url "jdbc://foo/bar/baz"})))
+                                             :db/url "jdbc://foo/bar/baz"})))
 
 #?(:cljs
    (deftest globaly-registered-components-test
@@ -276,8 +275,7 @@
                            :node-key :b,
                            :node-contents #:gx{:start '(/ (gx/ref :z) 0),
                                                :stop '(println "stopping")},
-                           :signal-key :gx/start
-                           :causes []}
+                           :signal-key :gx/start}
                           {:internal-data
                            {:ex-message
                             (str "class clojure.lang.Keyword cannot be cast"
@@ -290,13 +288,13 @@
                            :error-type :node-signal,
                            :node-key :c,
                            :node-contents '(inc :bar),
-                           :signal-key :gx/start
-                           :causes []})
+                           :signal-key :gx/start})
              p-gx-started (gx/signal gx-norm :gx/start)]
          (is (= expect
                 (->> @p-gx-started
                      :failures
-                     (map #(update % :internal-data dissoc :ex)))))))))
+                     (map #(update % :internal-data dissoc :ex))
+                     (map #(dissoc % :causes)))))))))
 
 (def props-validation-component
   {:gx/start {:gx/props '(gx/ref :a)
@@ -333,8 +331,7 @@
                :d '(gx/ref :c)}
         gx-map {:graph graph
                 :context gx/default-context}]
-    (gx/normalize gx-map))
-  )
+    (gx/normalize gx-map)))
 
 #?(:clj
    (deftest dependency-node-failures-test
@@ -365,12 +362,12 @@
                          :error-type :node-signal,
                          :node-key :b,
                          :node-contents '(/ (gx/ref :a) 0),
-                         :signal-key :gx/start
-                         :causes []})
+                         :signal-key :gx/start})
            p-gx-started (gx/signal gx-map :gx/start)
            failures (-> (:failures @p-gx-started)
                         (vec)
-                        (update-in [2 :internal-data] dissoc :ex))]
+                        (update-in [2 :internal-data] dissoc :ex)
+                        (update 2 dissoc :causes))]
        (is (= expect failures)))))
 
 #?(:cljs
@@ -430,7 +427,7 @@
               #:gx{:component 'k16.gx.beta.core-test/non-existent}
               :internal-data
               {:component 'k16.gx.beta.core-test/non-existent}
-              :causes [{:title :symbol-cannot-be-resolved 
+              :causes [{:title :symbol-cannot-be-resolved
                         :data 'k16.gx.beta.core-test/non-existent}]}
              (first (:failures gx-map)))))
 
@@ -569,7 +566,7 @@
         failure (first (:failures norm))
         cause (first (:causes failure))]
     #?(:clj
-        (is (instance? java.io.FileNotFoundException (:exception cause))))
+       (is (instance? java.io.FileNotFoundException (:exception cause))))
     (is (= :symbol-cannot-be-resolved (:title cause)))
     (is (= {:message "Unable to resolve symbol",
             :error-type :normalize-node,
@@ -621,4 +618,23 @@
        (is (= {:my-comp nil} (gx/failures started)))
        (is (= {:my-comp {}} (gx/values started)))
        (is (= {} (-> stopped :graph :my-comp :gx/props)))))))
+
+(def ^:export incorrect-schema-component
+  {:gx/start {:gx/processor (fn start [_] :started)
+              :gx/props-schema [:map
+                                [:foo {:optional true}
+                                 [:bar :string]]]}
+   :gx/stop {:gx/processor (fn stop [_] :stopped)}})
+
+(deftest incorrect-schema-errors-test
+  (let [graph {:config {:foo {:bar "something"}}
+               :comp {:gx/component 'k16.gx.beta.core-test/incorrect-schema-component
+                      :gx/props '(gx/ref :config)}}]
+    (test-async
+     (gx/signal {:graph graph} :gx/start)
+     (fn [started]
+       (let [{:keys [error-type causes] :as failures} (:comp (gx/failures started))]
+         (is (= :props-validation error-type))
+         (is (= ":malli.core/invalid-schema {:schema :bar}"
+                (-> causes first ex-message))))))))
 

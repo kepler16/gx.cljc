@@ -217,14 +217,27 @@
 (defn states [gx-map]
   (get-component-props (:graph gx-map) :gx/state))
 
+(defn- wrap-error
+  ([e arg-map]
+   (wrap-error e nil arg-map))
+  ([e msg arg-map]
+   (gx.err/gx-err-data (or msg "Signal processor error")
+                       {:ex-message (gx.err/gather-error-messages e)
+                        :args arg-map}
+                       e)))
+
 (defn validate-props
   [schema props]
-  (when-let [error (and schema (m/explain schema props))]
-    (with-err-ctx {:error-type :props-validation}
-      (gx.err/gx-err-data "Props validation error"
-                          {:props-value props
-                           :props-schema schema
-                           :schema-error (me/humanize error)}))))
+  (with-err-ctx {:error-type :props-validation}
+    (try
+      (when-let [error (and schema (m/explain schema props))]
+        (gx.err/gx-err-data "Props validation error"
+                            {:props-value props
+                             :props-schema schema
+                             :schema-error (me/humanize error)}))
+      (catch #?(:clj Exception :cljs :default) e
+        (wrap-error e "Props validation error" {:props-value props
+                                                :props-schema schema})))))
 
 (defn- run-props-fn
   [props-fn arg-map]
@@ -234,13 +247,6 @@
       (gx.err/throw-gx-err "Props function error"
                            {:ex-message (gx.err/gather-error-messages e)
                             :args arg-map}))))
-
-(defn- wrap-error
-  [e arg-map]
-  (gx.err/gx-err-data "Signal processor error"
-                      {:ex-message (gx.err/gather-error-messages e)
-                       :ex e
-                       :args arg-map}))
 
 #?(:cljs
    (defn- wrap-error-cljs
@@ -417,5 +423,4 @@
 
   (def norm (normalize {:graph graph}))
 
-  (selector-with-deps norm :gx/stop :server)
-  )
+  (selector-with-deps norm :gx/stop :server))
