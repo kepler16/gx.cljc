@@ -34,11 +34,13 @@
                      :my-component
                      :causes 
                      first
+                     :exception
                      (ex-data))
             :cljs (-> (gx/failures s)
                       :my-component
                       :causes
                       first
+                      :exception
                       (ex-data))))))
 
 #_{:clj-kondo/ignore [:clojure-lsp/unused-public-var]}

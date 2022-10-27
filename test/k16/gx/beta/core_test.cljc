@@ -636,5 +636,5 @@
        (let [{:keys [error-type causes] :as failures} (:comp (gx/failures started))]
          (is (= :props-validation error-type))
          (is (= ":malli.core/invalid-schema {:schema :bar}"
-                (-> causes first ex-message))))))))
+                (-> causes first :title))))))))
 

@@ -41,7 +41,9 @@
      :always (into (filter (fn [[_ v]] v) *err-ctx*))
      message (assoc :message message)
      internal-data (assoc :internal-data internal-data)
-     cause (update :causes conj cause))))
+     cause (update :causes conj {:title (ex-message cause)
+                                 :data (ex-data cause)
+                                 :exception cause}))))
 
 (defn throw-gx-err
   ([message]
@@ -82,6 +84,7 @@
 
 (defn humanize-error
   [{:keys [node-key signal-key message causes]} & rest-of-error]
+  (println message causes)
   (let [rest-of-error (filter seq rest-of-error)]
     (apply str (concat [(or message "Error") ": "
                         (tokenize "node = " node-key
