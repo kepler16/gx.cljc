@@ -84,7 +84,6 @@
 
 (defn humanize-error
   [{:keys [node-key signal-key message causes]} & rest-of-error]
-  (println message causes)
   (let [rest-of-error (filter seq rest-of-error)]
     (apply str (concat [(or message "Error") ": "
                         (tokenize "node = " node-key
