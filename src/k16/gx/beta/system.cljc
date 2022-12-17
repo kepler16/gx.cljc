@@ -1,6 +1,6 @@
 (ns k16.gx.beta.system
   (:require [k16.gx.beta.core :as gx]
-            [clojure.tools.logging :as log]
+            #?(:clj [clojure.tools.logging :as log])
             [k16.gx.beta.errors :as gx.errors]
             [promesa.core :as p]))
 
@@ -15,7 +15,7 @@
 (defn throw-root-exception!
   [failures]
   (let [{:keys [message causes]} (last failures)
-        {:keys [exception] :as root-cause} (first causes)]
+        {:keys [exception]} (first causes)]
     (cond
       exception (throw exception)
       :else (throw (ex-info message {:failures failures})))))
@@ -71,7 +71,8 @@
   (let [normalized (gx/normalize gx-map)]
     (swap! registry* assoc system-name normalized)
     (if-let [failures (seq (:failures normalized))]
-      (do (log/error (str "Normalize error\n" (gx.errors/humanize-all failures)))
+      (do (#?(:clj log/error :cljs js/console.log)
+           (str "Normalize error\n" (gx.errors/humanize-all failures)))
           (throw-root-exception! failures))
       normalized)))
 
@@ -97,8 +98,9 @@
          (p/then (fn [g]
                    (swap! registry* assoc system-name g)
                    (if-let [failures (:failures g)]
-                     (do (log/error (str "Signal failed!\n"
-                                         (gx.errors/humanize-all failures)))
+                     (do (#?(:clj log/error :cljs js/console.log)
+                          (str "Signal failed!\n"
+                               (gx.errors/humanize-all failures)))
                          (throw-root-exception! failures))
                      g))))
      (p/resolved nil))))
