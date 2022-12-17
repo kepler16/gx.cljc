@@ -69,18 +69,19 @@
   [& token-pairs]
   (assert (even? (count token-pairs))
           "tokenize accepts only even number of forms")
-  (->> token-pairs
-       (map stringify)
-       (partition 2)
-       (filter (comp seq second))
-       (map (fn [[a b]] [a (str "'" b "'")]))
-       (interpose ", ")
-       (flatten)
-       (apply str)))
+  (apply str (transduce (comp
+                         (map stringify)
+                         (partition-all 2)
+                         (filter (comp seq second))
+                         (map (fn [[a b]] [a (str "'" b "'")]))
+                         (interpose ", "))
+                        (completing conj flatten)
+                        token-pairs)))
 
 (defn- cause->str
-  [{:keys [title data exception]}]
-  (str "cause(" title " = " data "): " (gather-error-messages exception)))
+  [{:keys [data exception]}]
+  (str "cause" (when data (str "(data = " data ")")) ": "
+       (gather-error-messages exception)))
 
 (defn humanize-error
   [{:keys [node-key signal-key message causes]} & rest-of-error]
