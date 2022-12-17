@@ -18,7 +18,7 @@
         {:keys [exception] :as root-cause} (first causes)]
     (cond
       exception (throw exception)
-      :else (throw (ex-info message root-cause)))))
+      :else (throw (ex-info message {:failures failures})))))
 
 (defn states
   "Gets list of states of the graph as map.
@@ -71,7 +71,7 @@
   (let [normalized (gx/normalize gx-map)]
     (swap! registry* assoc system-name normalized)
     (if-let [failures (seq (:failures normalized))]
-      (do (print (str "Normalize error\n" (gx.errors/humanize-all failures)))
+      (do (log/error (str "Normalize error\n" (gx.errors/humanize-all failures)))
           (throw-root-exception! failures))
       normalized)))
 
