@@ -71,7 +71,7 @@
   (let [normalized (gx/normalize gx-map)]
     (swap! registry* assoc system-name normalized)
     (if-let [failures (seq (:failures normalized))]
-      (do (#?(:clj log/error :cljs js/console.log)
+      (do (#?(:clj log/error :cljs js/console.error)
            (str "Normalize error\n" (gx.errors/humanize-all failures)))
           (throw-root-exception! failures))
       normalized)))
@@ -98,7 +98,7 @@
          (p/then (fn [g]
                    (swap! registry* assoc system-name g)
                    (if-let [failures (:failures g)]
-                     (do (#?(:clj log/error :cljs js/console.log)
+                     (do (#?(:clj log/error :cljs js/console.error)
                           (str "Signal failed!\n"
                                (gx.errors/humanize-all failures)))
                          (throw-root-exception! failures))
