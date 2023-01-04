@@ -1,5 +1,6 @@
 (ns k16.gx.beta.system
   (:require [k16.gx.beta.core :as gx]
+            #?(:clj [clojure.tools.logging :as log])
             [k16.gx.beta.errors :as gx.errors]
             [promesa.core :as p]))
 
@@ -10,6 +11,14 @@
   (if (seq selector)
     (select-keys graph selector)
     graph))
+
+(defn throw-root-exception!
+  [failures]
+  (let [{:keys [message causes]} (last failures)
+        {:keys [exception]} (first causes)]
+    (cond
+      exception (throw exception)
+      :else (throw (ex-info message {:failures failures})))))
 
 (defn states
   "Gets list of states of the graph as map.
@@ -39,6 +48,17 @@
   (when-let [gx-map (get @registry* system-name)]
     (seq (:failures gx-map))))
 
+(defn failed-nodes
+  [system-name]
+  (when-let [gx-map (get @registry* system-name)]
+    (into {}
+          (comp
+           (filter (fn [[_k node]]
+                     (-> node :gx/failure :causes)))
+           (map (fn [[k node]]
+                  [k (-> node :gx/failure :causes)])))
+          (:graph gx-map))))
+
 (defn failures-humanized
   "Returns all failures as single humanized formatted string (ready for output)."
   [system-name]
@@ -51,9 +71,9 @@
   (let [normalized (gx/normalize gx-map)]
     (swap! registry* assoc system-name normalized)
     (if-let [failures (seq (:failures normalized))]
-      (throw (ex-info (str "Normalize error\n"
-                           (gx.errors/humanize-all failures))
-                      {:failures failures}))
+      (do (#?(:clj log/error :cljs js/console.error)
+           (str "Normalize error\n" (gx.errors/humanize-all failures)))
+          (throw-root-exception! failures))
       normalized)))
 
 (defn get-by-name
@@ -78,9 +98,10 @@
          (p/then (fn [g]
                    (swap! registry* assoc system-name g)
                    (if-let [failures (:failures g)]
-                     (throw (ex-info (str "Signal failed!\n"
-                                          (gx.errors/humanize-all failures))
-                                     {:failures failures}))
+                     (do (#?(:clj log/error :cljs js/console.error)
+                          (str "Signal failed!\n"
+                               (gx.errors/humanize-all failures)))
+                         (throw-root-exception! failures))
                      g))))
      (p/resolved nil))))
 
@@ -109,5 +130,4 @@
    (failures-humanized :sys))
 
   (values :sys)
-  (first (failures :sys))
-  )
+  (first (failures :sys)))
