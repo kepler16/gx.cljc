@@ -322,26 +322,29 @@
         ;; Binding vars is not passed to nested async code
         ;; Workaround for CLJS: propagating error context manually
         (let [err-ctx gx.err/*err-ctx*]
-          (p/let [props-result
-                  (if (fn? resolved-props-fn)
-                    (run-props-fn resolved-props-fn dep-nodes-vals)
-                    (impl/postwalk-evaluate dep-nodes-vals resolved-props))
-                  validate-error (with-err-ctx err-ctx
-                                   (validate-props props-schema props-result))
-                  [error result] (when-not validate-error
-                                   (run-processor
-                                    processor
-                                    {:props props-result
-                                     :value (:gx/value node)
-                                     :state (:gx/state node)
-                                     :instance (:gx/instance node)}
-                                    #?(:cljs err-ctx)))
-                  new-value (or (:gx/value result) result)]
-            (if-let [e (or validate-error error)]
-              (assoc node :gx/failure e)
-              (merge node {:gx/value new-value
-                           :gx/instance (:gx/instance result)
-                           :gx/state to-state}))))
+          (-> (p/let [props-result
+                      (with-err-ctx err-ctx
+                        (if (fn? resolved-props-fn)
+                          (run-props-fn resolved-props-fn dep-nodes-vals)
+                          (impl/postwalk-evaluate dep-nodes-vals resolved-props)))
+                      validate-error (with-err-ctx err-ctx
+                                       (validate-props props-schema props-result))
+                      [error result] (when-not validate-error
+                                       (run-processor
+                                        processor
+                                        {:props props-result
+                                         :value (:gx/value node)
+                                         :state (:gx/state node)
+                                         :instance (:gx/instance node)}
+                                        #?(:cljs err-ctx)))
+                      new-value (or (:gx/value result) result)]
+                (if-let [e (or validate-error error)]
+                  (assoc node :gx/failure e)
+                  (merge node {:gx/value new-value
+                               :gx/instance (:gx/instance result)
+                               :gx/state to-state})))
+              (p/catch (fn [e]
+                         (assoc node :gx/failure (ex-data e))))))
 
         :else (assoc node :gx/state to-state)))))
 

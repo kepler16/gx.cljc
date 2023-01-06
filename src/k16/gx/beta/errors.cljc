@@ -47,9 +47,11 @@
 
 (defn throw-gx-err
   ([message]
-   (throw-gx-err message nil))
+   (throw-gx-err message nil nil))
   ([message internal-data]
-   (throw (ex-info message (gx-err-data message internal-data)))))
+   (throw-gx-err message internal-data nil))
+  ([message internal-data cause]
+   (throw (ex-info message (gx-err-data message internal-data cause)))))
 
 (defn ex->gx-err-data
   [ex]

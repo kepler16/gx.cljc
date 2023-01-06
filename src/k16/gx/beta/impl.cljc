@@ -170,7 +170,11 @@
        (parse-local props x)
 
        (and (seq? x) (ifn? (first x)))
-       (apply (first x) (rest x))
+       (try
+         (apply (first x) (rest x))
+         (catch #?(:clj Throwable :cljs :default) e
+           (gx.err/throw-gx-err
+             (str "Form evaluate error: " form) {:props props} e)))
 
        :else x))
    form))

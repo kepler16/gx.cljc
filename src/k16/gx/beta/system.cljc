@@ -14,11 +14,13 @@
 
 (defn throw-root-exception!
   [failures]
-  (let [{:keys [message causes]} (last failures)
+  (let [{:keys [message causes node-key]} (last failures)
         {:keys [exception]} (first causes)]
-    (cond
-      exception (throw exception)
-      :else (throw (ex-info message {:failures failures})))))
+    (let [msg (str node-key
+                   "\n\t" message
+                   (when exception
+                     (str "\n\t" (ex-message exception))))]
+      (throw (ex-info msg {:failures failures})))))
 
 (defn states
   "Gets list of states of the graph as map.
