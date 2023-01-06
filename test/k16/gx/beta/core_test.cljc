@@ -200,7 +200,7 @@
   (let [env {:http/server {:port 8080}
              :db/url "jdbc://foo/bar/baz"}]
 
-    (t/are [arg result] (= result (impl/postwalk-evaluate env arg))
+    (t/are [arg result] (= result (impl/postwalk-evaluate env arg arg))
       '(gx/ref :http/server) {:port 8080}
 
       '(gx/ref-keys [:http/server :db/url]) {:http/server {:port 8080}
@@ -268,7 +268,7 @@
              gx-norm (gx/normalize {:graph graph
                                     :context gx/default-context})
              expect (list {:internal-data
-                           {:ex-message "Divide by zero",
+                           {:ex-message "Form evaluate error:\n\t>> (/ (gx/ref :z) 0)",
                             :args {:props {:z 1}, :value nil, :state :uninitialised, :instance nil}},
                            :message "Signal processor error",
                            :error-type :node-signal,
@@ -277,12 +277,7 @@
                                                :stop '(println "stopping")},
                            :signal-key :gx/start}
                           {:internal-data
-                           {:ex-message
-                            (str "class clojure.lang.Keyword cannot be cast"
-                                 " to class java.lang.Number (clojure.lang."
-                                 "Keyword is in unnamed module of loader "
-                                 "'app'; java.lang.Number is in module "
-                                 "java.base of loader 'bootstrap')"),
+                           {:ex-message "Form evaluate error:\n\t>> (inc :bar)",
                             :args {:props {}, :value nil, :state :uninitialised, :instance nil}},
                            :message "Signal processor error",
                            :error-type :node-signal,
@@ -356,7 +351,7 @@
                          :signal-key :gx/start
                          :causes []}
                         {:internal-data
-                         {:ex-message "Divide by zero",
+                         {:ex-message "Form evaluate error:\n\t>> (/ (gx/ref :a) 0)",
                           :args {:props {:a 1}, :state :uninitialised, :value nil, :instance nil}},
                          :message "Signal processor error",
                          :error-type :node-signal,
@@ -377,7 +372,7 @@
         (gx/signal {:graph graph} :gx/start)
         (fn [gx-map]
           (is (= {:internal-data
-                  {:ex-message "Invalid arity: 0",
+                  {:ex-message "Form evaluate error:\n\t>> (get)",
                    :args {:props {}, :value nil,
                           :instance nil,  :state :uninitialised}},
                   :message "Signal processor error",
