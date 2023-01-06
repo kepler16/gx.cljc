@@ -9,6 +9,9 @@ default:
 test *ARGS:
     bin/kaocha {{ ARGS }}
 
+test-cljs:
+    clojure -M:dev:shadow-cljs release test
+
 clean:
     rm -rf classes
     rm -rf .cpcache
