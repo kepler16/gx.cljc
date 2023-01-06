@@ -43,9 +43,9 @@
         with-pushed-down-form
         (if def?
           signal-def
-          (let [{:keys [form env]} (impl/form->runnable signal-def)]
+          (let [{:keys [form env initial-form]} (impl/form->runnable signal-def)]
             {:gx/processor (fn auto-signal-processor [{:keys [props]}]
-                             (impl/postwalk-evaluate props form))
+                             (impl/postwalk-evaluate props form initial-form))
              :gx/deps env
              :gx/resolved-props (->> env
                                      (map (fn [dep]
@@ -287,7 +287,7 @@
         node (-> (get graph node-key) (dissoc :gx/failure))
         node-state (:gx/state node)
         signal-def (get node signal-key)
-        {:gx/keys [processor props-schema resolved-props]} signal-def
+        {:gx/keys [processor props-schema resolved-props props]} signal-def
         ;; take deps from another signal of node if current signal has deps-from
         ;; and does not have resolved props
         {:gx/keys [resolved-props resolved-props-fn deps]}
@@ -326,7 +326,8 @@
                       (with-err-ctx err-ctx
                         (if (fn? resolved-props-fn)
                           (run-props-fn resolved-props-fn dep-nodes-vals)
-                          (impl/postwalk-evaluate dep-nodes-vals resolved-props)))
+                          (impl/postwalk-evaluate 
+                            dep-nodes-vals resolved-props props)))
                       validate-error (with-err-ctx err-ctx
                                        (validate-props props-schema props-result))
                       [error result] (when-not validate-error

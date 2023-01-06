@@ -162,7 +162,7 @@
   For cljs, consider compiled components or sci-evaluator, would require allowing
   for swappable evaluation stategies. Point to docs, to inform how to swap evaluator,
   or alternative ways to specify functions (that get compiled) that can be used."
-  [props form]
+  [props form initial-form]
   (walk/postwalk
    (fn [x]
      (cond
@@ -174,7 +174,7 @@
          (apply (first x) (rest x))
          (catch #?(:clj Throwable :cljs :default) e
            (gx.err/throw-gx-err
-             (str "Form evaluate error: " form) {:props props} e)))
+            (str "Form evaluate error:\n\t>> " initial-form) {:props props} e)))
 
        :else x))
    form))
@@ -184,10 +184,10 @@
   (when (symbol? sym)
     (if-let [nss #?(:cljs (namespace-symbol sym)
                     :clj (try
-                           (some-> sym
-                                   (namespace-symbol)
-                                   (requiring-resolve)
-                                   (var-get))
+                           (some->> sym
+                                    (namespace-symbol)
+                                    (requiring-resolve)
+                                    (var-get))
                            (catch Throwable e
                              (gx.err/add-err-cause
                               {:title :symbol-cannot-be-resolved
@@ -224,6 +224,7 @@
 
                   :else sub-form))))]
     {:env @props*
+     :initial-form form-def
      :form resolved-form}))
 
 (defn push-down-props
