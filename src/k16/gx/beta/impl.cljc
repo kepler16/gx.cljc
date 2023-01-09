@@ -181,7 +181,7 @@
 
 (defn resolve-symbol
   [sym]
-  (when (symbol? sym)
+  (if (symbol? sym)
     (if-let [nss #?(:cljs (namespace-symbol sym)
                     :clj (try
                            (some->> sym
@@ -195,7 +195,8 @@
                                :exception e}))))]
       nss
       (gx.err/add-err-cause {:title :symbol-cannot-be-resolved
-                             :data sym}))))
+                             :data sym}))
+    sym))
 
 (defn form->runnable [form-def]
   (let [props* (atom #{})
