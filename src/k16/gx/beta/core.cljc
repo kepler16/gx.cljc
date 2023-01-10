@@ -326,8 +326,8 @@
                       (with-err-ctx err-ctx
                         (if (fn? resolved-props-fn)
                           (run-props-fn resolved-props-fn dep-nodes-vals)
-                          (impl/postwalk-evaluate 
-                            dep-nodes-vals resolved-props props)))
+                          (impl/postwalk-evaluate
+                           dep-nodes-vals resolved-props props)))
                       validate-error (with-err-ctx err-ctx
                                        (validate-props props-schema props-result))
                       [error result] (when-not validate-error
