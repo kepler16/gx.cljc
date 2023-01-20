@@ -10,6 +10,8 @@ jobs:
 
     env:
       GITHUB_TOKEN: ${{secrets.GITHUB_TOKEN}}
+      ORG_GITHUB_ACTOR: ${{ secrets.ORG_GITHUB_ACTOR }}
+      ORG_GITHUB_TOKEN: ${{ secrets.ORG_GITHUB_TOKEN }}
 
     steps:
       - name: Checkout git repo
@@ -37,11 +39,11 @@ jobs:
         with:
           servers: |
             [{"id": "github-kepler",
-              "username": "GITHUB",
-              "password": "${{secrets.GITHUB_TOKEN}}"},
+              "username": "${{secrets.ORG_GITHUB_ACTOR}}",
+              "password": "${{secrets.ORG_GITHUB_TOKEN}}"},
              {"id": "github-kepler-releases",
-              "username": "GITHUB",
-              "password": "${{secrets.GITHUB_TOKEN}}"}]
+              "username": "${{secrets.ORG_GITHUB_ACTOR}}",
+              "password": "${{secrets.ORG_GITHUB_TOKEN}}"}]
 
       - uses: extractions/setup-just@v1
 
