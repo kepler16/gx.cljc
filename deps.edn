@@ -1,5 +1,7 @@
 {:paths ["src"]
- :mvn/repos {"github-kepler"
+ :mvn/repos {"github-kepler-releases"
+             {:url "https://maven.pkg.github.com/kepler16/*"}
+             "github-kepler"
              {:url "https://maven.pkg.github.com/kepler16/gx.cljc"}}
 
  :deps
