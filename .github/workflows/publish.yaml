@@ -38,6 +38,9 @@ jobs:
           servers: |
             [{"id": "github-kepler",
               "username": "GITHUB",
+              "password": "${{secrets.GITHUB_TOKEN}}"}
+             {"id": "github-kepler-releases",
+              "username": "GITHUB",
               "password": "${{secrets.GITHUB_TOKEN}}"}]
 
       - uses: extractions/setup-just@v1
