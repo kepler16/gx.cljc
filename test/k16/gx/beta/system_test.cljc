@@ -36,37 +36,30 @@
                                                    :b '(gx/ref :a)
                                                    :c '(gx/ref :z)}})
     (catch ExceptionInfo err
-      (is (= {:failures
-              [{:internal-data
-                {:errors
-                 [":c depends on :z, but :z doesn't exist"
-                  "circular :a -> :b -> :a"]},
-                :message "Dependency errors",
+      (is (= "\n\tDependency errors" (ex-message err)))
+      (is (= {:failure {:causes [],
+                        :error-type :deps-sort,
+                        :internal-data {:errors [":c depends on :z, but :z doesn't exist"
+                                                 "circular :a -> :b -> :a"]},
+                        :message "Dependency errors",
+                        :signal-key :gx/stop},
+              :subsequent-failures
+              [{:causes [],
                 :error-type :deps-sort,
-                :signal-key :gx/start
-                :causes []}
-               {:internal-data
-                {:errors
-                 [":c depends on :z, but :z doesn't exist"
-                  "circular :a -> :b -> :a"]},
+                :internal-data {:errors [":c depends on :z, but :z doesn't exist"
+                                         "circular :a -> :b -> :a"]},
                 :message "Dependency errors",
+                :signal-key :gx/resume}
+               {:causes [],
                 :error-type :deps-sort,
-                :signal-key :gx/suspend
-                :causes []}
-               {:internal-data
-                {:errors
-                 [":c depends on :z, but :z doesn't exist"
-                  "circular :a -> :b -> :a"]},
+                :internal-data {:errors [":c depends on :z, but :z doesn't exist"
+                                         "circular :a -> :b -> :a"]},
                 :message "Dependency errors",
+                :signal-key :gx/suspend}
+               {:causes [],
                 :error-type :deps-sort,
-                :signal-key :gx/resume
-                :causes []}
-               {:internal-data
-                {:errors
-                 [":c depends on :z, but :z doesn't exist"
-                  "circular :a -> :b -> :a"]},
+                :internal-data {:errors [":c depends on :z, but :z doesn't exist"
+                                         "circular :a -> :b -> :a"]},
                 :message "Dependency errors",
-                :error-type :deps-sort,
-                :signal-key :gx/stop
-                :causes []}]}
+                :signal-key :gx/start}]}
              (ex-data err))))))

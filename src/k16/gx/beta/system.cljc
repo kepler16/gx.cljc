@@ -13,14 +13,20 @@
     graph))
 
 (defn throw-root-exception!
-  [failures]
+  [reason-msg failures]
   (let [{:keys [message causes node-key] :as f} (last failures)
         {:keys [exception]} (first causes)]
     (let [msg (str node-key
                    "\n\t" message
                    (when exception
                      (str "\n\t" (ex-message exception))))]
-      (throw (or exception (ex-info msg {:failures failures}))))))
+      (#?(:clj log/error :cljs js/console.error)
+       (str reason-msg "\n" (gx.errors/humanize-all failures)))
+      (throw (or exception (ex-info msg {:failure (last failures)
+                                         :subsequent-failures
+                                         (-> failures
+                                             (butlast)
+                                             (reverse))}))))))
 
 (defn states
   "Gets list of states of the graph as map.
@@ -73,9 +79,7 @@
   (let [normalized (gx/normalize gx-map)]
     (swap! registry* assoc system-name normalized)
     (if-let [failures (seq (:failures normalized))]
-      (do (#?(:clj log/error :cljs js/console.error)
-           (str "Normalize error\n" (gx.errors/humanize-all failures)))
-          (throw-root-exception! failures))
+      (throw-root-exception! "Nomalize error" failures)
       normalized)))
 
 (defn get-by-name
@@ -89,22 +93,18 @@
    - Accepts system name and a signal key.
    - Returns a promise with a new system on success.
    - Returns a resolved promise with nil if system does not exist.
-   - Clojure: rejects with `clojure.lang.ExceptionInfo` wrapped in
-     `java.util.concurrent.ExecutionException` on signal failure.
-   - ClojureScript: rejects with `cljs.core.ExceptionInfo` on signal failure."
+   - Rejects with `clojure.lang.ExceptionInfo`"
   ([system-name signal-key]
    (signal! system-name signal-key nil))
   ([system-name signal-key selector]
    (if-let [gx-map (get @registry* system-name)]
      (-> (gx/signal gx-map signal-key selector)
-         (p/then (fn [g]
-                   (swap! registry* assoc system-name g)
-                   (if-let [failures (:failures g)]
-                     (do (#?(:clj log/error :cljs js/console.error)
-                          (str "Signal failed!\n"
-                               (gx.errors/humanize-all failures)))
-                         (throw-root-exception! failures))
-                     g))))
+         (p/then (fn [graph]
+                   (swap! registry* assoc system-name graph)
+                   (if-let [failures (:failures graph)]
+                     (throw-root-exception! "Signal failed!" failures)
+                     graph)))
+         (p/catch (fn [e] e)))
      (p/resolved nil))))
 
 (comment
