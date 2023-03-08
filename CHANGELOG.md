@@ -1,4 +1,82 @@
-# [](https://github.com/kepler16/gx.cljc/compare/v2.7.6...v) (2022-10-24)
+# [](https://github.com/kepler16/gx.cljc/compare/v2.8.10...v) (2023-03-08)
+
+
+
+## [2.8.10](https://github.com/kepler16/gx.cljc/compare/v2.8.9...v2.8.10) (2023-02-16)
+
+
+### Bug Fixes
+
+* show root failure + subsequent failures in ex-data ([1c4af0f](https://github.com/kepler16/gx.cljc/commit/1c4af0f48bb48514009fb95321d4fa2ce6520820))
+
+
+
+## [2.8.9](https://github.com/kepler16/gx.cljc/compare/v2.8.8...v2.8.9) (2023-01-26)
+
+
+### Bug Fixes
+
+* **TRE-1096:** in some cases wrong cause is thrown ([53d0263](https://github.com/kepler16/gx.cljc/commit/53d0263b53a93689325ead62b5013a4e4103c470))
+
+
+
+## [2.8.8](https://github.com/kepler16/gx.cljc/compare/v2.8.7...v2.8.8) (2023-01-20)
+
+
+### Bug Fixes
+
+* mvn/repos ([bcd9fc8](https://github.com/kepler16/gx.cljc/commit/bcd9fc8bee7f6f95865ba17ffba6fa8e6bb69ff9))
+* user k16/metabuild ([c2d1273](https://github.com/kepler16/gx.cljc/commit/c2d1273319ef4e50c168e3b5a5af6c10463fdfa2))
+* workflow ([255c4d2](https://github.com/kepler16/gx.cljc/commit/255c4d20182f2359a776f33342461f7957a79cc9))
+
+
+
+## [2.8.7](https://github.com/kepler16/gx.cljc/compare/v2.8.6...v2.8.7) (2023-01-20)
+
+
+### Bug Fixes
+
+* bump promesa and malli ([42bce77](https://github.com/kepler16/gx.cljc/commit/42bce771ff4cf7cbe59f3d4037b19de38309da76))
+* **resolve-symbol:** pass through non symbols ([9d051a2](https://github.com/kepler16/gx.cljc/commit/9d051a2b6c1240f3e881dcd02dee64476f720a1c))
+
+
+
+## [2.8.5](https://github.com/kepler16/gx.cljc/compare/v2.8.4...v2.8.5) (2023-01-06)
+
+
+### Bug Fixes
+
+* **#20:** do not throw wrapped error ([ab6c06a](https://github.com/kepler16/gx.cljc/commit/ab6c06a4bf9978747b3fa40419c7d3abbc81266b)), closes [#20](https://github.com/kepler16/gx.cljc/issues/20)
+* display initial form in evaluate error ([36f2745](https://github.com/kepler16/gx.cljc/commit/36f274582936344b75f8f0432fefd485a9c58979))
+* form evaluate errors ([623f563](https://github.com/kepler16/gx.cljc/commit/623f563c557403943f11d63198534d4969362d4a))
+* use console.error ([35803ed](https://github.com/kepler16/gx.cljc/commit/35803ed16cb47ced4c79036cc14faaa927de5675))
+
+
+
+## [2.8.3](https://github.com/kepler16/gx.cljc/compare/v2.8.2...v2.8.3) (2022-10-27)
+
+
+### Bug Fixes
+
+* remove extra print ([61a39fd](https://github.com/kepler16/gx.cljc/commit/61a39fdd2a2de23182e30ba034e20ac82986e63a))
+
+
+
+## [2.8.2](https://github.com/kepler16/gx.cljc/compare/v2.8.1...v2.8.2) (2022-10-27)
+
+
+### Bug Fixes
+
+* humanize wasn't showing cause properly ([63775e4](https://github.com/kepler16/gx.cljc/commit/63775e496028cce8b566d6318b903b5967f63958))
+
+
+
+## [2.8.1](https://github.com/kepler16/gx.cljc/compare/v2.8.0...v2.8.1) (2022-10-27)
+
+
+### Bug Fixes
+
+* incorrect props-schema error propagation ([5d79cb4](https://github.com/kepler16/gx.cljc/commit/5d79cb4c6a9721ff20c38783ef10309a403d5d86))
 
 
 ### Features
