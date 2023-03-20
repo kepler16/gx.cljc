@@ -39,6 +39,7 @@
      (filter-nodes (gx/states gx-map) selector))))
 
 (defn states-map
+  "Prints node states as a map grouped by states"
   ([system-name]
    (states-map system-name nil))
   ([system-name selector]
