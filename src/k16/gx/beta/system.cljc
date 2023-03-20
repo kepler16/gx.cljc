@@ -38,6 +38,15 @@
    (when-let [gx-map (get @registry* system-name)]
      (filter-nodes (gx/states gx-map) selector))))
 
+(defn states-map
+  ([system-name]
+   (states-map system-name nil))
+  ([system-name selector]
+   (some->> (states system-name selector)
+            (reduce (fn [acc [k v]]
+                      (update acc v conj k))
+                    {}))))
+
 (defn values
   "Gets list of values of the graph as map.
    Optionally accepts selector as set of nodes from the graph.
