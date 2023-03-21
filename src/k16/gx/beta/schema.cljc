@@ -37,6 +37,7 @@
   [:map
    gx-props
    [:gx/processor ifn?]
+   [:gx/timeout {:optional true} number?]
    [:gx/props-schema {:optional true} any?]
    [:gx/resolved-props-fn {:optional true} [:maybe fn?]]
    [:gx/deps {:optional true} coll?]
@@ -46,7 +47,7 @@
   [:map
    ;; top level props
    gx-props
-   [:gx/component {:optional true }any?]
+   [:gx/component {:optional true } any?]
    [:gx/signal-mapping {:optional true} [:map-of keyword? keyword?]]
    [:gx/state {:optional true} keyword?]
    [:gx/failure {:optional true} any?]
