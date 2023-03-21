@@ -18,6 +18,12 @@
   {:gx/start {:gx/processor (fn [{:keys [props]}]
                               (throw (ex-info "error!" props)))}})
 
+(def ^:export my-component-timeout
+  {:gx/start {:gx/processor (fn [{:keys [props]}]
+                              @(p/delay 10000)
+                              props)
+              :gx/timeout 10}})
+
 #_{:clj-kondo/ignore [:clojure-lsp/unused-public-var]}
 (deftest async-success-component-test
   (let [graph {:my-component
@@ -32,7 +38,7 @@
   (is (= {:foo :bar}
          #?(:clj (-> (gx/failures s)
                      :my-component
-                     :causes 
+                     :causes
                      first
                      :exception
                      (ex-data))
@@ -58,3 +64,17 @@
                 'k16.gx.beta.async-processor-test/my-component-exception
                 :gx/props {:foo :bar}}}]
     (test-async (gx/signal {:graph graph} :gx/start) run-check)))
+
+#_{:clj-kondo/ignore [:clojure-lsp/unused-public-var]}
+(deftest async-timeout-component-test
+  (let [graph {:my-component
+               {:gx/component
+                'k16.gx.beta.async-processor-test/my-component-timeout
+                :gx/props {:foo :bar}}}]
+    (is (= "Operation timed out."
+           (-> @(gx/signal {:graph graph} :gx/start)
+               (gx/failures)
+               :my-component
+               :causes
+               first
+               :title)))))

@@ -256,18 +256,19 @@
 
 #?(:clj
    (defn- run-processor
-     [processor arg-map]
+     [processor arg-map timeout]
      (try
-       [nil @(p/do (processor arg-map))]
+       [nil @(p/timeout (p/vthread @(p/do (processor arg-map))) timeout)]
        (catch Throwable e
-         [(wrap-error (or (ex-cause e) e) arg-map) nil]))))
+         [(wrap-error (gx.err/get-real-cause e) arg-map) nil]))))
 
 #?(:cljs
    (defn- run-processor
      "CLJS version with error context propagation"
-     [processor arg-map err-ctx]
+     [processor arg-map err-ctx timeout]
      (try
-       (-> (processor arg-map)
+       (-> (p/do (processor arg-map))
+           (p/timeout timeout)
            (p/then (fn [v] [nil v]))
            (p/catch (fn [e] [(wrap-error-cljs e arg-map err-ctx) nil])))
        (catch :default e
@@ -287,7 +288,7 @@
         node (-> (get graph node-key) (dissoc :gx/failure))
         node-state (:gx/state node)
         signal-def (get node signal-key)
-        {:gx/keys [processor props-schema resolved-props props]} signal-def
+        {:gx/keys [processor props-schema resolved-props props timeout]} signal-def
         ;; take deps from another signal of node if current signal has deps-from
         ;; and does not have resolved props
         {:gx/keys [resolved-props resolved-props-fn deps]}
@@ -305,7 +306,8 @@
         failed-dep-node-keys (->> {:graph dep-nodes}
                                   (failures)
                                   (filter second)
-                                  (map first))]
+                                  (map first))
+        timeout (or timeout 10000)]
     (with-err-ctx {:node-contents (node-key initial-graph)}
       (cond
         (or ;; signal isn't defined for this state transition
@@ -337,7 +339,8 @@
                                          :value (:gx/value node)
                                          :state (:gx/state node)
                                          :instance (:gx/instance node)}
-                                        #?(:cljs err-ctx)))
+                                        #?(:cljs err-ctx)
+                                        timeout))
                       new-value (or (:gx/value result) result)]
                 (if-let [e (or validate-error error)]
                   (assoc node :gx/failure e)
