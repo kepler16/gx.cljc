@@ -4,6 +4,13 @@
                          node-contents signal-key
                          causes])
 
+(defn get-real-cause
+  [e]
+  (loop [e e]
+    (if-let [c (ex-cause e)]
+      (recur c)
+      e)))
+
 (def ^:dynamic *err-ctx*
   "Error context is used for creating/throwing exceptions with contextual data"
   (map->ErrorContext {:error-type :general :causes []}))

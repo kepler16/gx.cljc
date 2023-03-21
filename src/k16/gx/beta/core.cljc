@@ -260,7 +260,7 @@
      (try
        [nil @(p/timeout (p/vthread @(p/do (processor arg-map))) timeout)]
        (catch Throwable e
-         [(wrap-error (or (ex-cause e) e) arg-map) nil]))))
+         [(wrap-error (gx.err/get-real-cause e) arg-map) nil]))))
 
 #?(:cljs
    (defn- run-processor
