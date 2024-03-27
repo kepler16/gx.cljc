@@ -20,8 +20,7 @@
 
 (def ^:export my-component-timeout
   {:gx/start {:gx/processor (fn [{:keys [props]}]
-                              @(p/delay 10000)
-                              props)
+                              (p/do (p/delay 10000) props))
               :gx/timeout 10}})
 
 #_{:clj-kondo/ignore [:clojure-lsp/unused-public-var]}
@@ -36,18 +35,12 @@
 
 (defn- run-check [s]
   (is (= {:foo :bar}
-         #?(:clj (-> (gx/failures s)
-                     :my-component
-                     :causes
-                     first
-                     :exception
-                     (ex-data))
-            :cljs (-> (gx/failures s)
-                      :my-component
-                      :causes
-                      first
-                      :exception
-                      (ex-data))))))
+         (-> (gx/failures s)
+             :my-component
+             :causes
+             first
+             :exception
+             (ex-data)))))
 
 #_{:clj-kondo/ignore [:clojure-lsp/unused-public-var]}
 (deftest async-rejected-component-test
@@ -66,15 +59,17 @@
     (test-async (gx/signal {:graph graph} :gx/start) run-check)))
 
 #_{:clj-kondo/ignore [:clojure-lsp/unused-public-var]}
-(deftest async-timeout-component-test
-  (let [graph {:my-component
-               {:gx/component
-                'k16.gx.beta.async-processor-test/my-component-timeout
-                :gx/props {:foo :bar}}}]
-    (is (= "Operation timed out."
-           (-> @(gx/signal {:graph graph} :gx/start)
-               (gx/failures)
-               :my-component
-               :causes
-               first
-               :title)))))
+#?(:clj
+   (deftest async-timeout-component-test
+     (let [graph {:my-component
+                  {:gx/component
+                   'k16.gx.beta.async-processor-test/my-component-timeout
+                   :gx/props {:foo :bar}}}]
+       (is (= "Operation timed out."
+              (-> @(gx/signal {:graph graph} :gx/start)
+                  (gx/failures)
+                  :my-component
+                  :causes
+                  first
+                  :title))))))
+

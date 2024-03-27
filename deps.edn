@@ -4,7 +4,6 @@
 
  :deps
  {funcool/promesa {:mvn/version "10.0.594"}
-  org.clojure/tools.logging {:mvn/version "1.2.4"}
   metosin/malli {:mvn/version "0.10.0"}}
 
  :aliases

@@ -37,7 +37,8 @@
                                                    :c '(gx/ref :z)}})
     (catch ExceptionInfo err
       (is (= "\n\tDependency errors" (ex-message err)))
-      (is (= {:failure {:causes [],
+      (is (= {:step :gx/normalize
+              :failure {:causes [],
                         :error-type :deps-sort,
                         :internal-data {:errors [":c depends on :z, but :z doesn't exist"
                                                  "circular :a -> :b -> :a"]},

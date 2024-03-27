@@ -1,6 +1,5 @@
 (ns k16.gx.beta.system
   (:require [k16.gx.beta.core :as gx]
-            #?(:clj [clojure.tools.logging :as log])
             [k16.gx.beta.errors :as gx.errors]
             [promesa.core :as p]))
 
@@ -12,21 +11,22 @@
     (select-keys graph selector)
     graph))
 
+(defn- ->err-msg
+  [node-key message exception]
+  (str node-key "\n\t" message (when exception
+                                 (str "\n\t" (ex-message exception)))))
+
 (defn throw-root-exception!
-  [reason-msg failures]
-  (let [{:keys [message causes node-key] :as f} (last failures)
-        {:keys [exception]} (first causes)]
-    (let [msg (str node-key
-                   "\n\t" message
-                   (when exception
-                     (str "\n\t" (ex-message exception))))]
-      (#?(:clj log/error :cljs js/console.error)
-       (str reason-msg "\n" (gx.errors/humanize-all failures)))
-      (throw (or exception (ex-info msg {:failure (last failures)
-                                         :subsequent-failures
-                                         (-> failures
-                                             (butlast)
-                                             (reverse))}))))))
+  [step failures]
+  (let [{:keys [message causes node-key]} (last failures)
+        {:keys [exception]} (first causes)
+        msg (->err-msg node-key message exception)]
+    (throw (or exception (ex-info msg {:step step
+                                       :failure (last failures)
+                                       :subsequent-failures
+                                       (-> failures
+                                           (butlast)
+                                           (reverse))})))))
 
 (defn states
   "Gets list of states of the graph as map.
@@ -89,7 +89,7 @@
   (let [normalized (gx/normalize gx-map)]
     (swap! registry* assoc system-name normalized)
     (if-let [failures (seq (:failures normalized))]
-      (throw-root-exception! "Nomalize error" failures)
+      (throw-root-exception! :gx/normalize failures)
       normalized)))
 
 (defn get-by-name
@@ -112,7 +112,7 @@
          (p/then (fn [graph]
                    (swap! registry* assoc system-name graph)
                    (if-let [failures (:failures graph)]
-                     (throw-root-exception! "Signal failed!" failures)
+                     (throw-root-exception! signal-key failures)
                      graph)))
          (p/catch (fn [e] e)))
      (p/resolved nil))))
