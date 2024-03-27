@@ -89,8 +89,8 @@
 
 (defn- cause->str
   [{:keys [data exception]}]
-  (str "cause" (when data (str "(data = " data ")")) ": "
-       (gather-error-messages exception)))
+  (str "cause" (when data (str "(data = " data ")")) " = '"
+       (gather-error-messages exception) "'"))
 
 (defn humanize-error
   [{:keys [node-key signal-key message causes]} & rest-of-error]
