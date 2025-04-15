@@ -84,7 +84,7 @@
                           maybe-fut (signal-node! node
                                                   signal-key
                                                   result-graph
-                                                  opts)]
+                                                  (assoc opts :ref-path ref-path))]
                       [ref-path maybe-fut])))
                  (mapv
                   (fn [[node-key maybe-fut]]

@@ -34,8 +34,13 @@
 
         graph (gx/signal! graph :start)]
 
-    (is (thrown-match? Exception {:errors {:value ["should be an integer"]}}
+    (is (thrown-match? Exception {:path [:c-b]
+                                  :errors {:value ["should be an integer"]}}
                        (gx/values graph)))
+
+    (is (= "Component [:c-b] failed props validation"
+           (try (gx/values graph)
+                (catch Exception ex (ex-message ex)))))
 
     (is (match? {:a 1
                  :b "2"
@@ -54,7 +59,7 @@
                                                       :handler fn?
                                                       :result-schema vector?}}
                                     :validate-props fn?}
-                       :error {:cause "Component props failed schema validation"
+                       :error {:cause "Component [:c-b] failed props validation"
                                :data {:errors {:value ["should be an integer"]}}}
 
                        :props {:ref-paths #{[:b]}

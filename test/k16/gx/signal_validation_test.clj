@@ -11,9 +11,12 @@
 (deftest signal-test
   (let [component-def {:signals {:start (fn [_ props]
                                           {:props props})}
-                       :validate-props (fn [props]
+                       :validate-props (fn [props opts]
                                          (when-not (= 1 (:value props))
-                                           (throw (ex-info "Invalid props" {:props props}))))}
+                                           (throw (ex-info (str "Component at "
+                                                                (:ref-path opts)
+                                                                " failed props validation")
+                                                           {:props props}))))}
 
         graph {:a 1
                :b 2
@@ -43,7 +46,7 @@
                        :value {:props {:value 1}}}
                  :c-b {:definition {:signals {:start fn?}
                                     :validate-props fn?}
-                       :error {:cause "Invalid props"
+                       :error {:cause "Component at [:c-b] failed props validation"
                                :data {:props {:value 2}}}
 
                        :props {:ref-paths #{[:b]}

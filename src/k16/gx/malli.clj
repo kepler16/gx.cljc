@@ -6,21 +6,25 @@
    [malli.core :as m]
    [malli.error :as me]))
 
-(defn- make-validate-fn [?schema message]
-  (fn validate-component [data]
+(defn- make-validate-fn [?schema kind]
+  (fn validate-component [data opts]
     (when-not (m/validate ?schema data)
-      (throw (ex-info message {:errors (-> (m/explain ?schema data)
-                                           me/humanize)})))))
+      (let [message (str "Component "
+                         (:ref-path opts)
+                         " failed "
+                         kind
+                         " validation")]
+        (throw (ex-info message {:path (:ref-path opts)
+                                 :errors (-> (m/explain ?schema data)
+                                             me/humanize)}))))))
 
 (defn- generate-validation-fns [{:keys [props-schema result-schema]}]
   (cond-> {}
     props-schema (assoc :validate-props
-                        (make-validate-fn props-schema
-                                          "Component props failed schema validation"))
+                        (make-validate-fn props-schema "props"))
 
     result-schema (assoc :validate-result
-                         (make-validate-fn result-schema
-                                           "Signal result failed schema validation"))))
+                         (make-validate-fn result-schema "result"))))
 
 (defn- compile-node [node]
   (let [{:keys [definition props]} (d/datafy node)

@@ -9,7 +9,8 @@
   (has-error? [_])
   (signal! [_ signal-key props opts]))
 
-(defn- execute-with-timeout [handler value props default-timeout-ms]
+(defn- execute-with-timeout
+  [handler signal ref-path value props default-timeout-ms opts]
   (let [{:keys [validate-props validate-result
                 timeout-ms handler]}
         handler
@@ -18,18 +19,21 @@
                        default-timeout-ms
                        10000)]
     (when validate-props
-      (validate-props props))
+      (validate-props props opts))
     (let [fut (gx.thread/vthread
                (handler value props))
           res (deref fut timeout-ms ::timeout)]
       (when (= ::timeout res)
-        (throw (ex-info (str "Component timed out after "
+        (throw (ex-info (str "Component at "
+                             ref-path
+                             " timed out after "
                              timeout-ms
-                             "ms while handling signal")
+                             "ms while handling signal "
+                             signal)
                         {})))
 
       (when validate-result
-        (validate-result res))
+        (validate-result res opts))
 
       res)))
 
@@ -49,7 +53,7 @@
     (not (nil? error)))
   (signal! [_ signal-key partial-graph opts]
     (try
-      (let [{:keys [filter-states timeout-ms]} opts
+      (let [{:keys [filter-states timeout-ms ref-path]} opts
 
             resolved-props (gx.ref/lookup-in props partial-graph)
             signal-definition (get-in definition [:signals signal-key])
@@ -62,9 +66,12 @@
                      (some #{state} filter-states)))]
         (if should-execute?
           (let [next-value (execute-with-timeout signal-handler
+                                                 signal-key
+                                                 ref-path
                                                  value
                                                  @resolved-props
-                                                 timeout-ms)]
+                                                 timeout-ms
+                                                 opts)]
             (Component. definition
                         resolved-props
                         signal-key
