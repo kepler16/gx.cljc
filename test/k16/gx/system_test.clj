@@ -21,11 +21,12 @@
     (is (= {:a 1 :b 1 :c {:props {:a 1}}}
            @system))
 
-    (is (= {:a 1 :b 1 :c :stopped}
-           (gx.system/stop! system)))
+    (is (nil? (gx.system/stop! system)))
 
-    (is (= {:a 1 :b 1 :c :stopped}
-           @system))))
+    (is (thrown-with-msg?
+         Exception
+         #"System is stopped. You cannot deref a stopped system"
+         @system))))
 
 (deftest system-error-test
   (let [system (gx.system/system
@@ -38,8 +39,9 @@
     (is (thrown-match? Exception {}
                        (gx.system/start! system)))
 
-    (is (= {:a :stopped :b nil}
-           (gx.system/stop! system)))
+    (is (nil? (gx.system/stop! system)))
 
-    (is (= {:a :stopped :b nil}
-           @system))))
+    (is (thrown-with-msg?
+         Exception
+         #"System is stopped. You cannot deref a stopped system"
+         @system))))

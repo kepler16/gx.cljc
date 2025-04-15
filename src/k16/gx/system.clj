@@ -3,29 +3,34 @@
    [k16.gx :as gx]))
 
 (defprotocol GxSystem
-  (signal! [this signal])
   (start! [this])
   (stop! [this]))
 
 (defn system [graph]
-  (let [graph (atom (gx/validate! graph))]
+  (let [graph (atom (gx/validate! graph))
+        state (atom :stopped)]
     (reify GxSystem
       (start! [_]
         (let [next (swap! graph (fn [graph]
                                   (gx/signal!
                                    graph
                                    :start)))]
+          (reset! state :started)
           (gx/values next)))
 
       (stop! [_]
-        (let [next (swap! graph (fn [graph]
-                                  (gx/signal!
-                                   graph
-                                   :stop
-                                   {:filter-states #{:start}
-                                    :order :reverse})))]
-          (gx/values next)))
+        (swap! graph (fn [graph]
+                       (gx/signal!
+                        graph
+                        :stop
+                        {:filter-states #{:start}
+                         :order :reverse})))
+        (reset! state :stopped)
+        nil)
 
       clojure.lang.IDeref
       (deref [_]
+        (when (= :stopped @state)
+          (throw (ex-info "System is stopped. You cannot deref a stopped system" 
+                          {})))
         (gx/values @graph)))))
