@@ -8,7 +8,7 @@
 
 (defmacro vthread [& body]
   `(.submit ^ExecutorService *executor*
-            ^Callable (fn [] ~@body)))
+            ^Callable (bound-fn [] ~@body)))
 
 (defn deref-maybe-fut [maybe-fut]
   (if (future? maybe-fut)
