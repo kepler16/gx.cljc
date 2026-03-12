@@ -1,14 +1,14 @@
 (ns k16.gx.thread
   (:import
-   java.util.concurrent.ExecutorService
-   java.util.concurrent.Executors))
+   java.util.concurrent.Executors
+   java.util.concurrent.ExecutorService))
 
 (def ^:dynamic *executor*
   (Executors/newVirtualThreadPerTaskExecutor))
 
 (defmacro vthread [& body]
-  `(.submit ^ExecutorService *executor*
-            ^Callable (bound-fn [] ~@body)))
+  `(let [^Callable fn# (bound-fn [] ~@body)]
+     (ExecutorService/.submit *executor* fn#)))
 
 (defn deref-maybe-fut [maybe-fut]
   (if (future? maybe-fut)
