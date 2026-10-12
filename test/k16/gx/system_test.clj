@@ -3,6 +3,7 @@
    [clojure.test :refer [deftest is]]
    [k16.gx :as gx]
    [k16.gx.system :as gx.system]
+   [k16.test :refer [thrown-match?]]
    [matcher-combinators.test]))
 
 (deftest system-test
@@ -23,12 +24,12 @@
 
     (is (nil? (gx.system/stop! system)))
 
-    (is (thrown-with-msg?
-         Exception
-         #"System is stopped. You cannot deref a stopped system"
-         @system))))
+    (thrown-match? (Exception
+                    #"System is stopped. You cannot deref a stopped system"
+                    {})
+                   @system)))
 
-(deftest system-error-test
+(deftest system-start-error-test
   (let [system (gx.system/system
                 {:a (gx/component {:signals {:start (fn [_ _] :started)
                                              :stop (fn [_ _] :stopped)}})
@@ -36,12 +37,41 @@
                                                       (throw (ex-info "Failed to start" {})))
                                              :stop (fn [_ _] :stopped)}})})]
 
-    (is (thrown-match? Exception {}
-                       (gx.system/start! system)))
+    (thrown-match? (Exception
+                    "Failed to resolve component :b"
+                    {:type :gx/component-error
+                     :path [:b]})
+                   (Exception
+                    "Failed to start"
+                    {})
+                   (gx.system/start! system))
 
     (is (nil? (gx.system/stop! system)))
 
-    (is (thrown-with-msg?
-         Exception
-         #"System is stopped. You cannot deref a stopped system"
-         @system))))
+    (thrown-match? (Exception
+                    #"System is stopped. You cannot deref a stopped system"
+                    {})
+                   @system)))
+
+(deftest system-stop-error-test
+  (let [system
+        (gx.system/system
+         {:resource
+          (gx/component
+           {:signals
+            {:start (fn [_ _]
+                      :started)
+             :stop (fn [_ _]
+                     (throw (ex-info "Stop failure" {}))
+                     :stopped)}})})]
+
+    (is (= {:resource :started}
+           (gx.system/start! system)))
+
+    (try (gx.system/stop! system)
+         (is false)
+         (catch Exception ex
+           (is (= "Failed to stop system" (ex-message ex)))
+
+           (let [error (:resource (:errors (ex-data ex)))]
+             (is (= "Stop failure" (ex-message (ex-cause error)))))))))

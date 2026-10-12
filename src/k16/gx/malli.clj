@@ -14,7 +14,8 @@
                          " failed "
                          kind
                          " validation")]
-        (throw (ex-info message {:path (:ref-path opts)
+        (throw (ex-info message {:type (keyword (str "gx/" kind "-validation-error"))
+                                 :path (:ref-path opts)
                                  :errors (-> (m/explain ?schema data)
                                              me/humanize)}))))))
 

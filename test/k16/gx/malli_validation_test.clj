@@ -7,6 +7,7 @@
    [k16.gx.component :as gx.component]
    [k16.gx.malli :as gx.malli]
    [k16.gx.ref :as gx.ref]
+   [k16.test :refer [thrown-match?]]
    [matcher-combinators.test]))
 
 (deftest signal-test
@@ -34,13 +35,18 @@
 
         graph (gx/signal! graph :start)]
 
-    (is (thrown-match? Exception {:path [:c-b]
-                                  :errors {:value ["should be an integer"]}}
-                       (gx/values graph)))
+    (thrown-match? (Exception
+                    "Failed to resolve component :c-b"
+                    {:type :gx/component-error
+                     :path [:c-b]})
 
-    (is (= "Component [:c-b] failed props validation"
-           (try (gx/values graph)
-                (catch Exception ex (ex-message ex)))))
+                   (Exception
+                    "Component [:c-b] failed props validation"
+                    {:type :gx/props-validation-error
+                     :path [:c-b]
+                     :errors {:value ["should be an integer"]}})
+
+                   (gx/values graph))
 
     (is (match? {:a 1
                  :b "2"

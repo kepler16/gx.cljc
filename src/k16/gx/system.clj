@@ -19,18 +19,25 @@
           (gx/values next)))
 
       (stop! [_]
-        (swap! graph (fn [graph]
-                       (gx/signal!
-                        graph
-                        :stop
-                        {:filter-states #{:start}
-                         :order :reverse})))
+        (let [next
+              (swap! graph (fn [graph]
+                             (gx/signal!
+                              graph
+                              :stop
+                              {:filter-states #{:start}
+                               :order :reverse})))
+              errors (gx/errors next)]
+
+          (when (seq errors)
+            (throw (ex-info "Failed to stop system"
+                            {:errors errors}))))
+
         (reset! state :stopped)
         nil)
 
       clojure.lang.IDeref
       (deref [_]
         (when (= :stopped @state)
-          (throw (ex-info "System is stopped. You cannot deref a stopped system" 
+          (throw (ex-info "System is stopped. You cannot deref a stopped system"
                           {})))
         (gx/values @graph)))))

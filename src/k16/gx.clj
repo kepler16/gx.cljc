@@ -2,6 +2,7 @@
   (:refer-clojure :exclude [ref])
   (:require
    [clojure.datafy :as d]
+   [clojure.string :as str]
    [k16.gx.component :as gx.component]
    [k16.gx.graph :as gx.graph]
    [k16.gx.node :as gx.node]
@@ -39,10 +40,20 @@
         (let [node (gx.traversal/get-in* graph ref-path)
               value (cond
                       (gx.ref/is-ref? node)
-                      @(gx.ref/lookup-in node result)
+                      (try @(gx.ref/lookup-in node result)
+                           (catch Exception ex
+                             (throw (ex-info (str "Failed to resolve ref " (str/join "/" ref-path))
+                                             {:type :gx/ref-error
+                                              :path ref-path}
+                                             ex))))
 
                       (gx.node/is-node? node)
-                      @node)]
+                      (try @node
+                           (catch Exception ex
+                             (throw (ex-info (str "Failed to resolve component " (str/join "/" ref-path))
+                                             {:type :gx/component-error
+                                              :path ref-path}
+                                             ex)))))]
           (assoc-in result ref-path value)))
       result-graph
       grouped-ref-paths))
@@ -54,7 +65,11 @@
      (let [node (gx.traversal/get-in* graph node-path)]
        (if (and (gx.component/is-instance? node)
                 (gx.component/has-error? node))
-         (assoc-in errors node-path (:error (d/datafy node)))
+         (assoc-in errors node-path
+                   (ex-info (str "Failed to resolve component " (str/join "/" node-path))
+                            {:type :gx/component-error
+                             :path node-path}
+                            (:error (d/datafy node))))
          errors)))
    {}
    (gx.graph/ref-graph graph)))
