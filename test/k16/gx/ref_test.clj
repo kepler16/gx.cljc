@@ -1,7 +1,7 @@
 (ns k16.gx.ref-test
   (:require
    [clojure.datafy :as d]
-   [clojure.test :refer [deftest is]]
+   [clojure.test :refer [deftest is testing]]
    [k16.gx.ref :as gx.ref]
    [matcher-combinators.test]))
 
@@ -40,21 +40,55 @@
         ref (gx.ref/with-refs [a (gx.ref/ref :a)
                                b (gx.ref/ref :b)]
               (swap! calls inc)
-              {:a a :b b})]
+              {:a a :b b})
+        resolved (gx.ref/lookup-in ref {:a 1
+                                        :b 2})]
     (is (= {:a 1
             :b 2}
-           @(gx.ref/lookup-in ref {:a 1
-                                   :b 2})))
+           @resolved))
     (is (= 1 @calls))
 
-    (is (= {:a 1
-            :b 2}
-           @(gx.ref/lookup-in ref {:a 1
-                                   :b 2})))
-    (is (= 1 @calls))
+    (let [re-resolved (gx.ref/lookup-in resolved {:a 1
+                                                   :b 2})]
+      (is (= {:a 1
+              :b 2}
+             @re-resolved))
+      (is (= 1 @calls))
 
-    (is (= {:a 2
-            :b 2}
-           @(gx.ref/lookup-in ref {:a 2
-                                   :b 2})))
-    (is (= 2 @calls))))
+      (is (= {:a 2
+              :b 2}
+             @(gx.ref/lookup-in re-resolved {:a 2
+                                             :b 2})))
+      (is (= 2 @calls)))
+
+    (testing "the unresolved definition does not share a cache between lookups"
+      @(gx.ref/lookup-in ref {:a 1
+                              :b 2})
+      (is (= 3 @calls)))))
+
+(deftest with-refs-nested-in-deferred-ref-memoization-test
+  (let [calls (atom 0)
+        ref (gx.ref/deferred-ref
+             {:inner (gx.ref/with-refs [a (gx.ref/ref :a)]
+                       (swap! calls inc)
+                       {:a a})})
+        resolved (gx.ref/lookup-in ref {:a 1})
+        re-resolved (gx.ref/lookup-in resolved {:a 1})]
+    (is (= {:inner {:a 1}}
+           @re-resolved))
+    (is (= 1 @calls))))
+
+(deftest with-refs-does-not-retain-values-test
+  (let [ref (gx.ref/with-refs [a (gx.ref/ref :a)]
+              {:a a})
+        ;; created inside a separate fn so no stack frame keeps the value alive
+        weak ((fn []
+                (let [value (Object.)]
+                  @(gx.ref/lookup-in ref {:a value})
+                  (java.lang.ref.WeakReference. value))))]
+    (loop [attempt 0]
+      (when (and (some? (.get weak)) (< attempt 20))
+        (System/gc)
+        (Thread/sleep 50)
+        (recur (inc attempt))))
+    (is (nil? (.get weak)))))
