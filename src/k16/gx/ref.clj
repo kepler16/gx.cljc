@@ -13,9 +13,7 @@
 (deftype Ref [ref-paths lookup-fn value]
   RefLookup
   (lookup-in [_ subgraph]
-    (Ref. ref-paths
-          lookup-fn
-          (lookup-fn subgraph)))
+    (lookup-fn subgraph))
 
   gx.node/Node
   (traverse [self key not-found]
@@ -47,24 +45,33 @@
                 key|path
                 [key|path])]
 
-     (->Ref #{path}
-            (fn [subgraph]
-              (gx.traversal/get-in* subgraph path fallback))
-            nil))))
+     (letfn [(lookup [subgraph]
+               (->Ref #{path}
+                      lookup
+                      (gx.traversal/get-in* subgraph path fallback)))]
+       (->Ref #{path} lookup nil)))))
 
 (defn- -with-refs [refs f]
   (let [ref-paths (into #{}
                         (mapcat gx.node/refs)
                         (vals refs))]
 
-    (->Ref
-     ref-paths
-     (fn [subgraph]
-       (f (into {}
-                (map (fn [[var ref]]
-                       [var @(lookup-in ref subgraph)]))
-                refs)))
-     nil)))
+    (letfn [(lookup-with [prev-args prev-value]
+              (fn [subgraph]
+                (let [args (into {}
+                                 (map (fn [[var ref]]
+                                        [var @(lookup-in ref subgraph)]))
+                                 refs)
+                      value (if (and (not (identical? ::unresolved prev-args))
+                                     (= prev-args args))
+                              prev-value
+                              (f args))]
+                  (->Ref ref-paths
+                         (lookup-with args value)
+                         value))))]
+      (->Ref ref-paths
+             (lookup-with ::unresolved nil)
+             nil))))
 
 (defn- with-refs* [refs body]
   (let [paired-refs (partition-all 2 refs)
@@ -83,8 +90,8 @@
                   node))
               body)]
     `(#'k16.gx.ref/-with-refs
-      ~refs (memoize (fn [{:keys ~vars}]
-                       ~@form)))))
+      ~refs (fn [{:keys ~vars}]
+              ~@form))))
 
 (defmacro with-refs [refs & body]
   (with-refs* refs body))
@@ -101,13 +108,17 @@
            form)
           @deps)]
 
-    (->Ref
-     ref-paths
-     (fn [subgraph]
-       (walk/postwalk
-        (fn [node]
-          (if (is-ref? node)
-            (lookup-in node subgraph)
-            node))
-        form))
-     nil)))
+    (letfn [(lookup-with [form]
+              (fn [subgraph]
+                (let [resolved (walk/postwalk
+                                (fn [node]
+                                  (if (is-ref? node)
+                                    (lookup-in node subgraph)
+                                    node))
+                                form)]
+                  (->Ref ref-paths
+                         (lookup-with resolved)
+                         resolved))))]
+      (->Ref ref-paths
+             (lookup-with form)
+             nil))))
